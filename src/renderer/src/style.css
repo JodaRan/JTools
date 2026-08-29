@@ -1,0 +1,78 @@
+@import 'tailwindcss';
+
+/* Thème piloté par la classe .dark sur <html>, pas par prefers-color-scheme :
+   l'utilisateur peut forcer clair/sombre indépendamment de l'OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Palette alignée sur celle de Naive UI pour que le chrome maison
+     (titlebar, onglets) se fonde avec les composants de la lib. */
+  --app-bg: #ffffff;
+  --app-surface: #fafafc;
+  --app-surface-2: #f0f0f3;
+  --app-border: #efeff5;
+  --app-text: #333639;
+  --app-text-muted: #8a8f99;
+  --app-accent: #18a058;
+}
+
+.dark {
+  --app-bg: #101014;
+  --app-surface: #18181c;
+  --app-surface-2: #26262a;
+  --app-border: rgba(255, 255, 255, 0.09);
+  --app-text: rgba(255, 255, 255, 0.82);
+  --app-text-muted: rgba(255, 255, 255, 0.52);
+  --app-accent: #63e2b7;
+}
+
+@theme inline {
+  --color-app-bg: var(--app-bg);
+  --color-app-surface: var(--app-surface);
+  --color-app-surface-2: var(--app-surface-2);
+  --color-app-border: var(--app-border);
+  --color-app-text: var(--app-text);
+  --color-app-muted: var(--app-text-muted);
+  --color-app-accent: var(--app-accent);
+}
+
+/* Zones de déplacement de la fenêtre frameless. */
+@utility app-drag {
+  -webkit-app-region: drag;
+}
+@utility app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  font-family:
+    'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Barres de défilement discrètes, cohérentes avec le thème. */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--app-surface-2);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--app-text-muted);
+  background-clip: content-box;
+}

@@ -1,0 +1,52 @@
+{
+  "name": "jtools",
+  "version": "1.0.0",
+  "description": "JTools — boîte à outils personnelle",
+  "main": "./out/main/index.js",
+  "author": "Joda RAKOTO",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck:node": "vue-tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test": "vitest run",
+    "dist": "npm run build && npm run icon && electron-builder --win",
+    "icon": "node scripts/make-icon.mjs",
+    "verify": "node scripts/verify-persistence.mjs && node scripts/verify-lines.mjs && node scripts/verify-tabs.mjs && node scripts/verify-undo.mjs",
+    "verify:packaged": "node scripts/verify-packaged.mjs"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-builder",
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.127",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.4.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "happy-dom": "^20.11.15",
+    "playwright-core": "^1.62.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "unplugin-icons": "^23.0.1",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.11",
+    "vue-tsc": "^3.3.11"
+  },
+  "dependencies": {
+    "naive-ui": "^2.45.3",
+    "pinia": "^4.0.3",
+    "vue": "^3.5.42",
+    "vue-draggable-plus": "^0.6.1",
+    "vue-router": "^5.3.0"
+  }
+}

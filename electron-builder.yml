@@ -1,0 +1,28 @@
+appId: com.jodarakoto.jtools
+productName: JTools
+copyright: © ${author}
+
+directories:
+  buildResources: build
+  output: dist
+
+# Seuls les bundles comptent : les sources restent hors de l'installeur.
+files:
+  - out/**
+  - package.json
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: JTools
+  artifactName: ${productName}-${version}-setup.${ext}

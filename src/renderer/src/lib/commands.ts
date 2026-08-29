@@ -1,0 +1,340 @@
+import { useDataStore } from '@/stores/data'
+import { newId, now } from '@/lib/id'
+import type { EntityType, HistoryAction, Line, Project, Sequence } from '@shared/models'
+
+/** Où regarder quand une annulation ramène quelque chose à la vie. */
+export interface CommandFocus {
+  toolId: string
+  projectId?: string
+  sequenceId?: string
+  lineId?: string
+}
+
+export interface Command {
+  /** Phrase affichée dans l'historique et les toasts. Ex. « Supprimer la ligne "gzip dump.sql" ». */
+  label: string
+  action: HistoryAction
+  entityType: EntityType
+  entityId: string
+  sequenceId: string | null
+  focus?: CommandFocus
+  before?: unknown
+  after?: unknown
+  /**
+   * Deux commandes de suite portant la même clé fusionnent en une seule entrée
+   * annulable : taper vingt caractères ne doit pas coûter vingt Ctrl+Z.
+   */
+  coalesceKey?: string
+  do(): void
+  undo(): void
+}
+
+/** Coupe un texte long pour qu'il tienne dans un libellé. */
+const short = (text: string, max = 32): string => {
+  const clean = text.trim().replace(/\s+/g, ' ')
+  if (!clean) return '(vide)'
+  return clean.length <= max ? clean : `${clean.slice(0, max - 1)}…`
+}
+
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+
+/**
+ * Reconstitue le chemin complet d'une séquence : après une annulation, le
+ * shell doit pouvoir ramener l'utilisateur exactement là où ça s'est passé.
+ */
+function focusForSequence(sequenceId: string, lineId?: string): CommandFocus | undefined {
+  const data = useDataStore()
+  const sequence = data.sequence(sequenceId)
+  if (!sequence) return undefined
+  const project = data.project(sequence.projectId)
+  if (!project) return undefined
+  return { toolId: project.toolId, projectId: project.id, sequenceId, lineId }
+}
+
+// —————————————————————————————— Projets ——————————————————————————————
+
+export function createProject(toolId: string, name: string): Command {
+  const data = useDataStore()
+  const stamp = now()
+  const project: Project = {
+    id: newId(),
+    toolId,
+    name: name.trim() || 'Projet sans nom',
+    description: '',
+    order: data.projectsOfTool(toolId).length,
+    createdAt: stamp,
+    updatedAt: stamp
+  }
+  return {
+    label: `Créer le projet « ${short(project.name)} »`,
+    action: 'create',
+    entityType: 'project',
+    entityId: project.id,
+    sequenceId: null,
+    focus: { toolId, projectId: project.id },
+    after: clone(project),
+    do: () => data.insertProject(clone(project)),
+    undo: () => data.removeProject(project.id)
+  }
+}
+
+export function renameProject(id: string, name: string): Command {
+  const data = useDataStore()
+  const previous = data.project(id)?.name ?? ''
+  return {
+    label: `Renommer le projet en « ${short(name)} »`,
+    action: 'update',
+    entityType: 'project',
+    entityId: id,
+    sequenceId: null,
+    before: previous,
+    after: name,
+    do: () => data.patchProject(id, { name }),
+    undo: () => data.patchProject(id, { name: previous })
+  }
+}
+
+export function deleteProject(id: string): Command {
+  const data = useDataStore()
+  const project = clone(data.project(id)!)
+  // Les descendants partent avec le projet, et doivent revenir avec lui.
+  const descendants = clone(data.descendantsOfProject(id))
+  const index = data.projectsOfTool(project.toolId).findIndex((p) => p.id === id)
+
+  return {
+    label: `Supprimer le projet « ${short(project.name)} »`,
+    action: 'delete',
+    entityType: 'project',
+    entityId: id,
+    sequenceId: null,
+    focus: { toolId: project.toolId, projectId: id },
+    before: { project, ...descendants },
+    do: () => {
+      for (const line of descendants.lines) data.removeLine(line.id)
+      for (const sequence of descendants.sequences) data.removeSequence(sequence.id)
+      data.removeProject(id)
+    },
+    undo: () => {
+      data.insertProject(clone(project), index)
+      for (const sequence of descendants.sequences) data.insertSequence(clone(sequence))
+      for (const line of descendants.lines) data.insertLine(clone(line))
+    }
+  }
+}
+
+export function reorderProjects(toolId: string, orderedIds: string[]): Command {
+  const data = useDataStore()
+  const previous = data.projectsOfTool(toolId).map((p) => p.id)
+  return {
+    label: 'Réordonner les projets',
+    action: 'reorder',
+    entityType: 'project',
+    entityId: toolId,
+    sequenceId: null,
+    before: previous,
+    after: orderedIds,
+    do: () => data.reorderProjects(toolId, orderedIds),
+    undo: () => data.reorderProjects(toolId, previous)
+  }
+}
+
+// ————————————————————————————— Séquences —————————————————————————————
+
+export function createSequence(projectId: string, name: string): Command {
+  const data = useDataStore()
+  const stamp = now()
+  const sequence: Sequence = {
+    id: newId(),
+    projectId,
+    name: name.trim() || 'Séquence sans nom',
+    description: '',
+    order: data.sequencesOfProject(projectId).length,
+    createdAt: stamp,
+    updatedAt: stamp
+  }
+  return {
+    label: `Créer la séquence « ${short(sequence.name)} »`,
+    action: 'create',
+    entityType: 'sequence',
+    entityId: sequence.id,
+    sequenceId: sequence.id,
+    after: clone(sequence),
+    do: () => data.insertSequence(clone(sequence)),
+    undo: () => data.removeSequence(sequence.id)
+  }
+}
+
+export function renameSequence(id: string, name: string): Command {
+  const data = useDataStore()
+  const previous = data.sequence(id)?.name ?? ''
+  return {
+    label: `Renommer la séquence en « ${short(name)} »`,
+    action: 'update',
+    entityType: 'sequence',
+    entityId: id,
+    sequenceId: id,
+    before: previous,
+    after: name,
+    do: () => data.patchSequence(id, { name }),
+    undo: () => data.patchSequence(id, { name: previous })
+  }
+}
+
+export function deleteSequence(id: string): Command {
+  const data = useDataStore()
+  const sequence = clone(data.sequence(id)!)
+  const lines = clone(data.linesOfSequence(id))
+  const index = data.sequencesOfProject(sequence.projectId).findIndex((s) => s.id === id)
+
+  return {
+    label: `Supprimer la séquence « ${short(sequence.name)} »`,
+    action: 'delete',
+    entityType: 'sequence',
+    entityId: id,
+    sequenceId: id,
+    focus: focusForSequence(id),
+    before: { sequence, lines },
+    do: () => {
+      for (const line of lines) data.removeLine(line.id)
+      data.removeSequence(id)
+    },
+    undo: () => {
+      data.insertSequence(clone(sequence), index)
+      for (const line of lines) data.insertLine(clone(line))
+    }
+  }
+}
+
+export function reorderSequences(projectId: string, orderedIds: string[]): Command {
+  const data = useDataStore()
+  const previous = data.sequencesOfProject(projectId).map((s) => s.id)
+  return {
+    label: 'Réordonner les séquences',
+    action: 'reorder',
+    entityType: 'sequence',
+    entityId: projectId,
+    sequenceId: null,
+    before: previous,
+    after: orderedIds,
+    do: () => data.reorderSequences(projectId, orderedIds),
+    undo: () => data.reorderSequences(projectId, previous)
+  }
+}
+
+// —————————————————————————————— Lignes ———————————————————————————————
+
+export function createLine(sequenceId: string, content: string, at?: number): Command {
+  const data = useDataStore()
+  const stamp = now()
+  const line: Line = {
+    id: newId(),
+    sequenceId,
+    content,
+    comment: '',
+    hidden: false,
+    order: at ?? data.linesOfSequence(sequenceId).length,
+    createdAt: stamp,
+    updatedAt: stamp
+  }
+  return {
+    label: content.trim() ? `Ajouter « ${short(content)} »` : 'Ajouter une ligne',
+    action: 'create',
+    entityType: 'line',
+    entityId: line.id,
+    sequenceId,
+    focus: focusForSequence(sequenceId, line.id),
+    after: clone(line),
+    do: () => data.insertLine(clone(line), at),
+    undo: () => data.removeLine(line.id)
+  }
+}
+
+export function updateLine(id: string, content: string): Command {
+  const data = useDataStore()
+  const previous = data.line(id)?.content ?? ''
+  return {
+    label: `Modifier « ${short(content)} »`,
+    action: 'update',
+    entityType: 'line',
+    entityId: id,
+    sequenceId: data.line(id)?.sequenceId ?? null,
+    focus: focusForSequence(data.line(id)?.sequenceId ?? '', id),
+    before: previous,
+    after: content,
+    // La frappe continue se replie sur une seule entrée d'annulation.
+    coalesceKey: `line-content:${id}`,
+    do: () => data.patchLine(id, { content }),
+    undo: () => data.patchLine(id, { content: previous })
+  }
+}
+
+export function deleteLine(id: string): Command {
+  const data = useDataStore()
+  const line = clone(data.line(id)!)
+  const index = data.linesOfSequence(line.sequenceId).findIndex((l) => l.id === id)
+  return {
+    label: `Supprimer « ${short(line.content)} »`,
+    action: 'delete',
+    entityType: 'line',
+    entityId: id,
+    sequenceId: line.sequenceId,
+    focus: focusForSequence(line.sequenceId, id),
+    before: line,
+    do: () => data.removeLine(id),
+    undo: () => data.insertLine(clone(line), index)
+  }
+}
+
+export function setLineHidden(id: string, hidden: boolean): Command {
+  const data = useDataStore()
+  const line = data.line(id)
+  return {
+    label: hidden ? `Cacher « ${short(line?.content ?? '')} »` : `Réafficher « ${short(line?.content ?? '')} »`,
+    action: hidden ? 'hide' : 'unhide',
+    entityType: 'line',
+    entityId: id,
+    sequenceId: line?.sequenceId ?? null,
+    focus: focusForSequence(line?.sequenceId ?? '', id),
+    before: !hidden,
+    after: hidden,
+    do: () => data.patchLine(id, { hidden }),
+    undo: () => data.patchLine(id, { hidden: !hidden })
+  }
+}
+
+export function setLineComment(id: string, comment: string): Command {
+  const data = useDataStore()
+  const line = data.line(id)
+  const previous = line?.comment ?? ''
+  return {
+    label: comment.trim() ? `Commenter « ${short(line?.content ?? '')} »` : 'Retirer le commentaire',
+    action: 'comment',
+    entityType: 'line',
+    entityId: id,
+    sequenceId: line?.sequenceId ?? null,
+    focus: focusForSequence(line?.sequenceId ?? '', id),
+    before: previous,
+    after: comment,
+    do: () => data.patchLine(id, { comment }),
+    undo: () => data.patchLine(id, { comment: previous })
+  }
+}
+
+export function reorderLines(sequenceId: string, orderedIds: string[]): Command {
+  const data = useDataStore()
+  const previous = data.linesOfSequence(sequenceId).map((l) => l.id)
+  return {
+    label: 'Réordonner les lignes',
+    action: 'reorder',
+    entityType: 'line',
+    entityId: sequenceId,
+    sequenceId,
+    focus: focusForSequence(sequenceId),
+    before: previous,
+    after: orderedIds,
+    do: () => data.reorderLines(sequenceId, orderedIds),
+    undo: () => data.reorderLines(sequenceId, previous)
+  }
+}
+
+export { short as shortLabel }
