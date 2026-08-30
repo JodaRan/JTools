@@ -12,6 +12,8 @@ import IconCheck from '~icons/lucide/check'
 import IconTrash from '~icons/lucide/trash-2'
 import IconMore from '~icons/lucide/more-vertical'
 import IconMessage from '~icons/lucide/message-square'
+import IconEye from '~icons/lucide/eye'
+import IconEyeOff from '~icons/lucide/eye-off'
 
 const props = defineProps<{ line: Line; index: number; spotlit?: boolean }>()
 
@@ -29,11 +31,29 @@ const emit = defineEmits<{
   copy: []
   remove: []
   hide: []
+  mask: [masked: boolean]
   comment: [text: string]
 }>()
 
 const textarea = ref<HTMLTextAreaElement | null>(null)
 const copied = ref(false)
+
+/**
+ * La révélation est purement locale et volontairement éphémère : elle n'est ni
+ * persistée, ni remontée au store. Changer d'onglet démonte la ligne, donc
+ * la referme — c'est le comportement voulu pour un secret.
+ */
+const revealed = ref(false)
+const obscured = computed(() => props.line.masked && !revealed.value)
+
+// Retirer le masquage doit remettre le compteur à zéro : si on le remasque
+// plus tard, il ne doit pas rouvrir déjà révélé.
+watch(
+  () => props.line.masked,
+  (masked) => {
+    if (!masked) revealed.value = false
+  }
+)
 const editingComment = ref(false)
 const commentDraft = ref('')
 let copiedTimer: number | undefined
@@ -111,20 +131,32 @@ function focusSelf(): void {
   textarea.value?.select()
 }
 
+function toggleReveal(): void {
+  revealed.value = !revealed.value
+}
+
 const menuOptions = computed(() => [
   { key: 'edit', label: 'Modifier' },
   {
     key: 'comment',
     label: props.line.comment ? 'Modifier le commentaire' : 'Ajouter un commentaire'
   },
-  { key: 'hide', label: 'Cacher' },
+  // Rendre la ligne masquable : c'est ici qu'on la marque. Une fois marquée,
+  // c'est l'œil, hors du menu, qui la révèle.
+  { key: 'mask', label: props.line.masked ? 'Ne plus masquer' : 'Masquer le contenu' },
+  { key: 'hide', label: 'Cacher — retirer de la liste' },
   { type: 'divider', key: 'd1' },
   { key: 'duplicate', label: 'Dupliquer' }
 ])
 
 function onMenu(key: string): void {
-  if (key === 'edit') focusSelf()
+  if (key === 'edit') {
+    // On ne demande pas de modifier une ligne qu'on ne peut pas lire.
+    if (props.line.masked) revealed.value = true
+    focusSelf()
+  }
   if (key === 'comment') void startComment()
+  if (key === 'mask') emit('mask', !props.line.masked)
   if (key === 'hide') emit('hide')
   if (key === 'duplicate') emit('duplicate')
 }
@@ -158,6 +190,8 @@ const vFocusOnMount = { mounted: (el: HTMLInputElement) => el.focus() }
         :value="line.content"
         :data-test-input="line.id"
         class="w-full resize-none bg-transparent px-2 py-1.5 font-mono text-[13px] leading-5 text-app-text outline-none"
+        :class="obscured && 'jt-masked'"
+        :data-test-masked="obscured ? 'true' : undefined"
         @input="onInput"
         @keydown.enter.exact.prevent="emit('split')"
         @keydown.up="onArrowUp"
@@ -189,6 +223,19 @@ const vFocusOnMount = { mounted: (el: HTMLInputElement) => el.focus() }
     </div>
 
     <div class="mt-1 flex shrink-0 items-center gap-0.5">
+      <!-- Réservé aux lignes masquées, et volontairement hors du menu ⋮ :
+           révéler un secret doit tenir en un seul geste. -->
+      <button
+        v-if="line.masked"
+        class="rounded p-1.5 transition-colors hover:bg-app-surface-2"
+        :class="revealed ? 'text-app-accent' : 'text-app-muted'"
+        :title="revealed ? 'Masquer à nouveau' : 'Révéler le contenu'"
+        :data-test-reveal="line.id"
+        @click="toggleReveal"
+      >
+        <component :is="revealed ? IconEyeOff : IconEye" class="size-4" />
+      </button>
+
       <button
         class="rounded p-1.5 transition-colors hover:bg-app-surface-2"
         :class="copied ? 'text-app-accent' : 'text-app-muted opacity-0 group-hover:opacity-100'"

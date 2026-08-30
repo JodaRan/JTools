@@ -5,6 +5,7 @@ import {
   defaultUi,
   type DataFile,
   type HistoryFile,
+  type Line,
   type UiFile
 } from '@shared/models'
 
@@ -21,13 +22,28 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const asArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
 
+/**
+ * v1 → v2 : la ligne gagne `masked`. Les fichiers d'avant n'ont pas le champ ;
+ * on le pose à `false` plutôt que de laisser un `undefined` traverser l'app,
+ * où il se comporterait comme « non masqué » mais casserait tout `toggle`.
+ */
+const normalizeLine = (input: unknown): Line => {
+  const line = (isRecord(input) ? input : {}) as Partial<Line>
+  return {
+    ...(line as Line),
+    hidden: line.hidden === true,
+    masked: line.masked === true,
+    comment: typeof line.comment === 'string' ? line.comment : ''
+  }
+}
+
 export function migrateData(input: unknown): DataFile {
   if (!isRecord(input)) return defaultData()
   return {
     version: SCHEMA_VERSION,
     projects: asArray(input.projects),
     sequences: asArray(input.sequences),
-    lines: asArray(input.lines)
+    lines: asArray<unknown>(input.lines).map(normalizeLine)
   }
 }
 
@@ -49,6 +65,7 @@ export function migrateUi(input: unknown): UiFile {
     window: { ...base.window, ...(isRecord(input.window) ? input.window : {}) },
     explorer: { ...base.explorer, ...(isRecord(input.explorer) ? input.explorer : {}) },
     sidebar: { ...base.sidebar, ...(isRecord(input.sidebar) ? input.sidebar : {}) },
+    split: { ...base.split, ...(isRecord(input.split) ? input.split : {}) },
     tabs: asArray(input.tabs)
   } as UiFile
 }

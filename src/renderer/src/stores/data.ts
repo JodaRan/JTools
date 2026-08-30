@@ -51,6 +51,9 @@ export const useDataStore = defineStore('data', () => {
   const hiddenLines = (sequenceId: string): Line[] =>
     linesOfSequence(sequenceId).filter((l) => l.hidden)
 
+  const maskedLines = (sequenceId: string): Line[] =>
+    linesOfSequence(sequenceId).filter((l) => l.masked)
+
   const project = (id: string): Project | undefined => projects.value.find((p) => p.id === id)
   const sequence = (id: string): Sequence | undefined => sequences.value.find((s) => s.id === id)
   const line = (id: string): Line | undefined => lines.value.find((l) => l.id === id)
@@ -203,6 +206,7 @@ export const useDataStore = defineStore('data', () => {
     linesOfSequence,
     visibleLines,
     hiddenLines,
+    maskedLines,
     project,
     sequence,
     line,

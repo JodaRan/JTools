@@ -21,6 +21,11 @@ export const useTabsStore = defineStore('tabs', () => {
   const activeId = computed(() => ui.activeTabId)
   const active = computed(() => ui.tabs.find((tab) => tab.id === ui.activeTabId) ?? null)
 
+  /** L'onglet affiché dans le volet droit, s'il existe encore. */
+  const splitTab = computed(
+    () => ui.tabs.find((tab) => tab.id === ui.split.tabId) ?? null
+  )
+
   /** Le titre suit le nom de la séquence : renommer met l'onglet à jour. */
   const titleOf = (tab: TabState): string => data.sequence(tab.sequenceId)?.name ?? 'Séquence'
 
@@ -31,19 +36,41 @@ export const useTabsStore = defineStore('tabs', () => {
   function open(toolId: string, projectId: string, sequenceId: string): TabState {
     const existing = findBySequence(sequenceId)
     if (existing) {
-      ui.activeTabId = existing.id
-      ui.touch()
+      activate(existing.id)
       return existing
     }
     const tab: TabState = { id: newId(), toolId, projectId, sequenceId }
     ui.tabs = [...ui.tabs, tab]
-    ui.activeTabId = tab.id
-    ui.touch()
+    activate(tab.id)
     return tab
   }
 
   function activate(tabId: string | null): void {
     ui.activeTabId = tabId
+    // Les deux volets ne montrent jamais la même séquence : ce serait deux
+    // vues concurrentes du même contenu, avec un halo d'annulation ambigu.
+    if (tabId !== null && ui.split.tabId === tabId) ui.split.tabId = null
+    ui.touch()
+  }
+
+  /**
+   * Envoie un onglet dans le volet droit. S'il occupait le volet principal,
+   * celui-ci retombe sur le voisin, puis sur l'Explorer : le contenu ne peut
+   * pas être des deux côtés.
+   */
+  function openSplit(tabId: string): string | null {
+    if (!ui.tabs.some((tab) => tab.id === tabId)) return ui.activeTabId
+    ui.split.tabId = tabId
+    if (ui.activeTabId === tabId) {
+      const others = ui.tabs.filter((tab) => tab.id !== tabId)
+      ui.activeTabId = others[0]?.id ?? null
+    }
+    ui.touch()
+    return ui.activeTabId
+  }
+
+  function closeSplit(): void {
+    ui.split.tabId = null
     ui.touch()
   }
 
@@ -56,6 +83,7 @@ export const useTabsStore = defineStore('tabs', () => {
     if (index === -1) return null
     const remaining = ui.tabs.filter((tab) => tab.id !== tabId)
     ui.tabs = remaining
+    if (ui.split.tabId === tabId) ui.split.tabId = null
     if (ui.activeTabId === tabId) {
       ui.activeTabId = (remaining[index] ?? remaining[index - 1] ?? null)?.id ?? null
     }
@@ -66,12 +94,14 @@ export const useTabsStore = defineStore('tabs', () => {
   function closeOthers(tabId: string): void {
     ui.tabs = ui.tabs.filter((tab) => tab.id === tabId)
     ui.activeTabId = tabId
+    ui.split.tabId = null
     ui.touch()
   }
 
   function closeAll(): void {
     ui.tabs = []
     ui.activeTabId = null
+    ui.split.tabId = null
     ui.touch()
   }
 
@@ -97,6 +127,7 @@ export const useTabsStore = defineStore('tabs', () => {
     if (alive.length === ui.tabs.length) return
     ui.tabs = alive
     if (!alive.some((tab) => tab.id === ui.activeTabId)) ui.activeTabId = null
+    if (!alive.some((tab) => tab.id === ui.split.tabId)) ui.split.tabId = null
     ui.touch()
   }
 
@@ -104,10 +135,13 @@ export const useTabsStore = defineStore('tabs', () => {
     tabs,
     activeId,
     active,
+    splitTab,
     titleOf,
     findBySequence,
     open,
     activate,
+    openSplit,
+    closeSplit,
     close,
     closeOthers,
     closeAll,

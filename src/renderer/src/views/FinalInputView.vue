@@ -18,16 +18,27 @@ import {
   reorderLines,
   setLineComment,
   setLineHidden,
+  setLineMasked,
   updateLine
 } from '@/lib/commands'
 import { useSpotlight } from '@/composables/useSpotlight'
+import BackButton from '@/components/common/BackButton.vue'
 import LineRow from '@/components/sequence/LineRow.vue'
 import InsertZone from '@/components/sequence/InsertZone.vue'
 import type { Line } from '@shared/models'
 import IconCopyAll from '~icons/lucide/clipboard-list'
 import IconPlus from '~icons/lucide/plus'
 
-const props = defineProps<{ toolId: string; projectId: string; sequenceId: string }>()
+const props = defineProps<{
+  toolId: string
+  projectId: string
+  sequenceId: string
+  /**
+   * Rendu dans le volet droit plutôt que par le routeur : le bouton retour
+   * agirait sur la route du volet principal, il n'a donc rien à faire ici.
+   */
+  embedded?: boolean
+}>()
 
 const data = useDataStore()
 const undo = useUndoStore()
@@ -38,6 +49,7 @@ const sequence = computed(() => data.sequence(props.sequenceId))
 const allLines = computed(() => data.linesOfSequence(props.sequenceId))
 const visible = computed(() => allLines.value.filter((line) => !line.hidden))
 const hiddenCount = computed(() => allLines.value.length - visible.value.length)
+const maskedCount = computed(() => visible.value.filter((line) => line.masked).length)
 
 // Copie locale : Sortable réordonne le tableau qu'on lui confie, on ne veut
 // pas qu'il touche directement au store.
@@ -136,6 +148,11 @@ function onHide(line: Line): void {
   message.info('Ligne cachée — visible dans le panneau latéral.')
 }
 
+function onMask(line: Line, masked: boolean): void {
+  undo.run(setLineMasked(line.id, masked))
+  message.info(masked ? 'Contenu masqué — cliquez sur l’œil pour le révéler.' : 'Ligne démasquée.')
+}
+
 const onComment = (line: Line, text: string): void => undo.run(setLineComment(line.id, text))
 
 // —————————————————————————— Ligne fantôme ——————————————————————————
@@ -202,6 +219,7 @@ function onDragEnd(): void {
 <template>
   <div v-if="sequence" class="mx-auto max-w-3xl">
     <header class="mb-4 flex items-center gap-2">
+      <BackButton v-if="!embedded" />
       <input
         :value="sequence.name"
         class="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-xl font-semibold text-app-text outline-none hover:bg-app-surface focus:bg-app-surface-2"
@@ -210,9 +228,9 @@ function onDragEnd(): void {
         @keydown.enter="($event.target as HTMLInputElement).blur()"
       />
       <span class="shrink-0 text-[12px] text-app-muted">
-        {{ visible.length }} ligne(s)<template v-if="hiddenCount">
-          · {{ hiddenCount }} cachée(s)</template
-        >
+        {{ visible.length }} ligne(s)<template v-if="maskedCount">
+          · {{ maskedCount }} masquée(s)</template
+        ><template v-if="hiddenCount"> · {{ hiddenCount }} cachée(s)</template>
       </span>
       <button
         class="shrink-0 rounded p-1.5 text-app-muted transition-colors hover:bg-app-surface-2 hover:text-app-text"
@@ -249,6 +267,7 @@ function onDragEnd(): void {
           @copy="onCopy(line)"
           @remove="onRemove(line, position)"
           @hide="onHide(line)"
+          @mask="(masked) => onMask(line, masked)"
           @comment="(text) => onComment(line, text)"
         />
       </div>

@@ -40,6 +40,26 @@ export const useHistoryStore = defineStore('history', () => {
     scheduleSave('history')
   }
 
+  /**
+   * Efface le détail des traces d'une ligne. Appelé au moment où on la masque :
+   * marquer un contenu comme secret n'aurait aucun sens s'il restait lisible en
+   * clair dans le journal — qui, lui, est persisté sur le disque.
+   *
+   * On garde les entrées, pour ne pas trouer la chronologie, mais on retire le
+   * libellé détaillé et les charges utiles (`before`/`after`) qui portaient la
+   * valeur. Une ligne masquée n'est donc plus restaurable depuis le panneau ;
+   * elle reste annulable par Ctrl+Z, dont la pile ne vit qu'en mémoire.
+   */
+  function redactLine(lineId: string): void {
+    let touched = false
+    entries.value = entries.value.map((entry) => {
+      if (entry.entityType !== 'line' || entry.entityId !== lineId) return entry
+      touched = true
+      return { ...entry, label: 'Ligne masquée — détail expurgé', before: null, after: null }
+    })
+    if (touched) scheduleSave('history')
+  }
+
   function clear(): void {
     entries.value = []
     scheduleSave('history')
@@ -55,5 +75,15 @@ export const useHistoryStore = defineStore('history', () => {
 
   registerSource('history', serialize)
 
-  return { entries, recent, forSequence, append, replaceLast, clear, serialize, hydrate }
+  return {
+    entries,
+    recent,
+    forSequence,
+    append,
+    replaceLast,
+    redactLine,
+    clear,
+    serialize,
+    hydrate
+  }
 })

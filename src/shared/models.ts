@@ -4,7 +4,7 @@
  * et d'une étape dans `migrate.ts`.
  */
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export interface Project {
   id: string
@@ -31,7 +31,14 @@ export interface Line {
   sequenceId: string
   content: string
   comment: string
+  /** Retirée de la liste : elle ne vit plus que dans le panneau latéral. */
   hidden: boolean
+  /**
+   * Contenu obscurci en place. La ligne garde sa position et reste copiable,
+   * mais son texte n'est révélé que le temps d'un clic sur l'œil — et la
+   * révélation ne quitte jamais la mémoire de la vue.
+   */
+  masked: boolean
   order: number
   createdAt: string
   updatedAt: string
@@ -44,6 +51,8 @@ export type HistoryAction =
   | 'reorder'
   | 'hide'
   | 'unhide'
+  | 'mask'
+  | 'unmask'
   | 'comment'
   | 'import'
 
@@ -64,7 +73,7 @@ export interface HistoryEntry {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system'
-export type SidebarPanel = 'history' | 'hidden'
+export type SidebarPanel = 'history' | 'hidden' | 'masked'
 
 export interface WindowState {
   x: number | null
@@ -81,6 +90,14 @@ export interface TabState {
   sequenceId: string
 }
 
+/** Volet secondaire : un second onglet affiché côte à côte avec le principal. */
+export interface SplitState {
+  /** `null` = pas de volet droit. */
+  tabId: string | null
+  /** Largeur du volet principal, en fraction de la zone de contenu. */
+  ratio: number
+}
+
 export interface UiState {
   window: WindowState
   theme: ThemeMode
@@ -90,6 +107,7 @@ export interface UiState {
   /** Dernier emplacement visité dans l'explorateur, pour y revenir au lancement. */
   explorer: { toolId: string | null; projectId: string | null }
   sidebar: { open: boolean; panel: SidebarPanel; width: number }
+  split: SplitState
 }
 
 export interface DataFile {
@@ -145,5 +163,6 @@ export const defaultUi = (): UiFile => ({
   tabs: [],
   activeTabId: null,
   explorer: { toolId: null, projectId: null },
-  sidebar: { open: false, panel: 'history', width: 320 }
+  sidebar: { open: false, panel: 'history', width: 320 },
+  split: { tabId: null, ratio: 0.5 }
 })

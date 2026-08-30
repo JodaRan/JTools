@@ -5,6 +5,7 @@ import { useDataStore } from '@/stores/data'
 import { useNavigation } from '@/composables/useNavigation'
 import { useUndoStore } from '@/stores/undo'
 import { createSequence, deleteSequence, renameSequence, reorderSequences } from '@/lib/commands'
+import BackButton from '@/components/common/BackButton.vue'
 import ItemList, { type ListItem } from '@/components/common/ItemList.vue'
 
 const props = defineProps<{ toolId: string; projectId: string }>()
@@ -38,7 +39,10 @@ function remove(id: string): void {
 
 <template>
   <div class="mx-auto max-w-3xl">
-    <h1 class="text-xl font-semibold">{{ project?.name ?? 'Projet introuvable' }}</h1>
+    <div class="flex items-center gap-2">
+      <BackButton />
+      <h1 class="min-w-0 truncate text-xl font-semibold">{{ project?.name ?? 'Projet introuvable' }}</h1>
+    </div>
     <p class="mt-1 text-[13px] text-app-muted">
       Les séquences de ce projet. Ouvrez-en une pour éditer ses lignes.
     </p>

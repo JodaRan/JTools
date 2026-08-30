@@ -20,6 +20,13 @@ const isTextField = (target: EventTarget | null): boolean => {
 }
 
 /**
+ * Un menu Naive ouvert (⋮ d'une ligne, clic droit sur un onglet) capte déjà le
+ * clavier : Échap le ferme, les flèches le parcourent. Un raccourci global qui
+ * partirait par-dessus donnerait l'impression que le menu a été ignoré.
+ */
+const isMenuOpen = (): boolean => document.querySelector('.n-dropdown') !== null
+
+/**
  * Raccourcis d'application, posés une seule fois sur la fenêtre. Par défaut ils
  * s'effacent devant un champ de saisie : dans un texte, Ctrl+Z doit d'abord
  * annuler la frappe, pas la dernière action métier.
@@ -33,6 +40,7 @@ export function registerHotkeys(hotkeys: Hotkey[]): () => void {
       if (!!hotkey.shift !== event.shiftKey) continue
       if (!!hotkey.alt !== event.altKey) continue
       if (!hotkey.inFields && isTextField(event.target)) continue
+      if (!hotkey.inFields && isMenuOpen()) continue
       event.preventDefault()
       hotkey.run(event)
       return

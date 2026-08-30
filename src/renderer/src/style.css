@@ -61,6 +61,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Masquage d'une ligne secrète. `-webkit-text-security` obscurcit le texte
+   sans sortir le champ du flux : la ligne reste éditable, navigable au clavier
+   et déplaçable, contrairement à un remplacement par des points statiques. */
+.jt-masked {
+  -webkit-text-security: disc;
+}
+
 /* Barres de défilement discrètes, cohérentes avec le thème. */
 *::-webkit-scrollbar {
   width: 10px;

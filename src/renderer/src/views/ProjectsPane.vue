@@ -6,6 +6,7 @@ import { useDataStore } from '@/stores/data'
 import { useUndoStore } from '@/stores/undo'
 import { toolById } from '@/tools/registry'
 import { createProject, deleteProject, renameProject, reorderProjects } from '@/lib/commands'
+import BackButton from '@/components/common/BackButton.vue'
 import ItemList, { type ListItem } from '@/components/common/ItemList.vue'
 
 const props = defineProps<{ toolId: string }>()
@@ -39,7 +40,10 @@ function remove(id: string): void {
 
 <template>
   <div class="mx-auto max-w-3xl">
-    <h1 class="text-xl font-semibold">{{ tool?.name ?? 'Outil inconnu' }}</h1>
+    <div class="flex items-center gap-2">
+      <BackButton />
+      <h1 class="min-w-0 truncate text-xl font-semibold">{{ tool?.name ?? 'Outil inconnu' }}</h1>
+    </div>
     <p class="mt-1 text-[13px] text-app-muted">{{ tool?.description }}</p>
 
     <div class="mt-6">

@@ -4,14 +4,15 @@ import { useNavigation } from '@/composables/useNavigation'
 import { useUndoRedo } from '@/composables/useUndoRedo'
 import { useUiStore } from '@/stores/ui'
 import { registerHotkeys } from '@/lib/hotkeys'
-import { routeForTab } from '@/lib/navigation'
-import { useRouter } from 'vue-router'
+import { parentRoute, routeForTab } from '@/lib/navigation'
+import { useRoute, useRouter } from 'vue-router'
 
 /** Raccourcis globaux de la coquille : annulation, onglets, navigation. */
 export function useAppHotkeys(): void {
   const tabs = useTabsStore()
   const ui = useUiStore()
   const router = useRouter()
+  const route = useRoute()
   const { goToExplorer } = useNavigation()
   const { performUndo, performRedo } = useUndoRedo()
 
@@ -24,6 +25,12 @@ export function useAppHotkeys(): void {
     if (tab) void router.push(routeForTab(tab))
   }
 
+  /** Même geste que le chevron posé à côté du titre. */
+  const goUp = (): void => {
+    const to = parentRoute(route)
+    if (to) void router.push(to)
+  }
+
   let dispose: (() => void) | undefined
 
   onMounted(() => {
@@ -34,6 +41,11 @@ export function useAppHotkeys(): void {
       { key: 'y', ctrl: true, inFields: true, run: () => void performRedo() },
       { key: 'z', ctrl: true, shift: true, inFields: true, run: () => void performRedo() },
       { key: 'b', ctrl: true, inFields: true, run: () => ui.toggleSidebar() },
+      // Retour arrière remonte d'un niveau. `inFields` reste à faux : dans un
+      // champ, la touche doit d'abord effacer du texte — et sur une ligne vide,
+      // supprimer la ligne (voir LineRow).
+      { key: 'Backspace', run: goUp },
+      { key: 'ArrowLeft', alt: true, inFields: true, run: goUp },
       // Ctrl+W ferme l'onglet courant ; sur l'Explorer, il ne fait rien.
       {
         key: 'w',

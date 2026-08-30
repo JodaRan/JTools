@@ -10,6 +10,7 @@ const makeLine = (sequenceId: string, content: string): Line => ({
   content,
   comment: '',
   hidden: false,
+  masked: false,
   order: 0,
   createdAt: now(),
   updatedAt: now()
@@ -68,5 +69,40 @@ describe('store de données — ordre des lignes', () => {
     data.patchLine(middle.id, { hidden: true })
     expect(data.visibleLines(SEQ).map((l) => l.content)).toEqual(['a', 'c'])
     expect(data.hiddenLines(SEQ).map((l) => l.content)).toEqual(['b'])
+  })
+})
+
+describe('store de données — lignes masquées', () => {
+  const SEQ = 'seq-mask'
+  let data: ReturnType<typeof useDataStore>
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    data = useDataStore()
+  })
+
+  it('sépare masquées et cachées, qui sont deux notions distinctes', () => {
+    const [secret, dropped, plain] = ['clé', 'obsolète', 'ls -la'].map((text) =>
+      makeLine(SEQ, text)
+    )
+    for (const line of [secret, dropped, plain]) data.insertLine(line)
+
+    data.patchLine(secret.id, { masked: true })
+    data.patchLine(dropped.id, { hidden: true })
+
+    expect(data.maskedLines(SEQ).map((l) => l.content)).toEqual(['clé'])
+    expect(data.hiddenLines(SEQ).map((l) => l.content)).toEqual(['obsolète'])
+    // Une ligne masquée reste dans la liste : c'est tout l'intérêt.
+    expect(data.visibleLines(SEQ).map((l) => l.content)).toEqual(['clé', 'ls -la'])
+  })
+
+  it('cumule les deux états sur une même ligne', () => {
+    const line = makeLine(SEQ, 'mot de passe')
+    data.insertLine(line)
+    data.patchLine(line.id, { masked: true, hidden: true })
+
+    expect(data.maskedLines(SEQ)).toHaveLength(1)
+    expect(data.hiddenLines(SEQ)).toHaveLength(1)
+    expect(data.visibleLines(SEQ)).toHaveLength(0)
   })
 })

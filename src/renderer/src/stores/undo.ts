@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import { useHistoryStore } from '@/stores/history'
+import { useDataStore } from '@/stores/data'
 import type { Command, CommandFocus } from '@/lib/commands'
 
 /** Au-delà, la pile ne rend plus service et retient de la mémoire pour rien. */
@@ -28,17 +29,29 @@ export const useUndoStore = defineStore('undo', () => {
   const COALESCE_MS = 1500
   let lastRunAt = 0
 
+  /**
+   * Traduit une commande en entrée de journal. Les charges utiles d'une ligne
+   * masquée sont écartées : le libellé est déjà expurgé côté commandes, mais
+   * `before`/`after` transportaient encore la valeur en clair jusque dans
+   * history.json.
+   */
   const asEntry = (
     command: Command
-  ): Parameters<ReturnType<typeof useHistoryStore>['append']>[0] => ({
-    action: command.action,
-    entityType: command.entityType,
-    entityId: command.entityId,
-    sequenceId: command.sequenceId,
-    label: command.label,
-    before: command.before ?? null,
-    after: command.after ?? null
-  })
+  ): Parameters<ReturnType<typeof useHistoryStore>['append']>[0] => {
+    const data = useDataStore()
+    const secret =
+      command.entityType === 'line' && data.line(command.entityId)?.masked === true
+
+    return {
+      action: command.action,
+      entityType: command.entityType,
+      entityId: command.entityId,
+      sequenceId: command.sequenceId,
+      label: command.label,
+      before: secret ? null : (command.before ?? null),
+      after: secret ? null : (command.after ?? null)
+    }
+  }
 
   /** Exécute une commande et la rend annulable. Toute mutation passe par ici. */
   function run(command: Command): void {

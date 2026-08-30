@@ -36,7 +36,12 @@ et dépose ses captures dans `.shots/`. Il faut avoir construit l'app avant
   Le fil d'Ariane ramène à n'importe quel ancêtre.
 - **Ouvrir une séquence** crée son onglet. Un onglet ne se ferme qu'au clic sur
   son ×, au clic milieu ou par `Ctrl+W` ; on le déplace au glisser.
+- **Deux séquences côte à côte** : clic droit sur un onglet › « Ouvrir à
+  droite ». Le séparateur central se glisse à la souris, et le volet se ferme
+  par son ×. Une même séquence ne peut pas occuper les deux volets.
 - **Vue finale** : chaque ligne est éditable en place.
+- **Remonter d'un cran** : le chevron `‹` posé à gauche de chaque titre, ou
+  `Retour arrière` hors d'un champ de saisie.
 
 ### Raccourcis
 
@@ -49,12 +54,35 @@ et dépose ses captures dans `.shots/`. Il faut avoir construit l'app avant
 | `Alt+↑` / `Alt+↓` | déplace la ligne |
 | `Ctrl+D` | duplique la ligne |
 | `Ctrl+Z` / `Ctrl+Y` | annule / rétablit, partout dans l'app |
-| `Ctrl+B` | panneau latéral (historique, lignes cachées) |
+| `Ctrl+B` | panneau latéral (historique, lignes cachées, lignes masquées) |
 | `Ctrl+Tab` / `Ctrl+1…9` | navigue entre les onglets |
+| `Retour arrière` (hors champ) | remonte au niveau supérieur |
+| `Alt+←` | remonte au niveau supérieur, y compris depuis un champ |
 
 Survoler l'espace entre deux lignes fait apparaître un `+` : le clic insère une
 ligne à cet endroit. La dernière ligne est toujours un champ vide prêt à
 recevoir la frappe suivante.
+
+### Cacher ou masquer une ligne
+
+Deux notions distinctes, toutes deux dans le menu `⋮` de la ligne :
+
+- **Cacher** retire la ligne de la liste ; elle ne vit plus que dans l'onglet
+  « Cachées » du panneau latéral, d'où on la réaffiche.
+- **Masquer le contenu** la laisse à sa place mais remplace son texte par des
+  points. Un bouton œil apparaît alors sur la ligne — **hors du menu `⋮`**, pour
+  que révéler tienne en un geste. La révélation est éphémère : elle n'est pas
+  enregistrée et se referme dès qu'on quitte l'onglet.
+
+Masquer une ligne expurge aussi ce que le journal avait déjà écrit d'elle : le
+libellé et les valeurs conservées sont remplacés, car `history.json` est écrit
+en clair sur le disque. Une ligne masquée n'est donc plus restaurable depuis le
+panneau « Historique » — elle reste annulable par `Ctrl+Z`, dont la pile ne vit
+qu'en mémoire.
+
+> Le masquage protège des regards par-dessus l'épaule et d'un partage d'écran,
+> **pas** du contenu du disque : `data.json` reste en clair. Le chiffrement au
+> repos n'est pas encore en place.
 
 ## Données
 

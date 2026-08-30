@@ -45,11 +45,23 @@ const menuX = ref(0)
 const menuY = ref(0)
 const menuTab = ref<TabState | null>(null)
 
-const menuOptions = [
-  { key: 'close', label: 'Fermer' },
-  { key: 'others', label: 'Fermer les autres' },
-  { key: 'all', label: 'Tout fermer' }
-]
+const menuOptions = computed(() => {
+  const tab = menuTab.value
+  const isSplit = tab !== null && tabs.splitTab?.id === tab.id
+  return [
+    {
+      key: 'split',
+      label: isSplit ? 'Retirer du volet de droite' : 'Ouvrir à droite',
+      // Ouvrir à droite n'a de sens qu'à partir de deux onglets : sinon le
+      // volet principal n'aurait plus rien à afficher.
+      disabled: !isSplit && tabs.tabs.length < 2
+    },
+    { type: 'divider', key: 'd0' },
+    { key: 'close', label: 'Fermer' },
+    { key: 'others', label: 'Fermer les autres' },
+    { key: 'all', label: 'Tout fermer' }
+  ]
+})
 
 async function onContextMenu(event: MouseEvent, tab: TabState): Promise<void> {
   event.preventDefault()
@@ -66,6 +78,17 @@ function onMenuSelect(key: string): void {
   const tab = menuTab.value
   menuShow.value = false
   if (!tab) return
+  if (key === 'split') {
+    if (tabs.splitTab?.id === tab.id) {
+      tabs.closeSplit()
+    } else {
+      const primary = tabs.openSplit(tab.id)
+      // Le volet principal a pu changer de main : la route doit suivre.
+      const next = tabs.tabs.find((item) => item.id === primary)
+      if (next) void goToTab(next)
+      else void goToExplorer()
+    }
+  }
   if (key === 'close') closeTab(tab)
   if (key === 'others') {
     tabs.closeOthers(tab.id)
@@ -104,11 +127,14 @@ function onMenuSelect(key: string): void {
         v-for="tab in ordered"
         :key="tab.id"
         class="group/tab flex h-8 max-w-[200px] shrink-0 items-center gap-1 rounded-t-md pr-1 pl-3 text-[13px] transition-colors"
-        :class="
+        :class="[
           tabs.activeId === tab.id
             ? 'bg-app-bg text-app-text'
-            : 'text-app-muted hover:bg-app-surface-2 hover:text-app-text'
-        "
+            : 'text-app-muted hover:bg-app-surface-2 hover:text-app-text',
+          // Affiché à droite : liseré d'accent, pour le distinguer de l'actif.
+          tabs.splitTab?.id === tab.id && 'border-b-2 border-app-accent bg-app-bg'
+        ]"
+        :data-test-tab-split="tabs.splitTab?.id === tab.id ? 'true' : undefined"
         @auxclick="onAuxClick($event, tab)"
         @contextmenu="onContextMenu($event, tab)"
       >

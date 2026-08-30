@@ -1,4 +1,4 @@
-import type { RouteLocationRaw, Router } from 'vue-router'
+import type { RouteLocationNormalizedLoaded, RouteLocationRaw, Router } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { useDataStore } from '@/stores/data'
 import { useTabsStore } from '@/stores/tabs'
@@ -8,6 +8,21 @@ export const routeForTab = (tab: TabState): RouteLocationRaw => ({
   name: 'final',
   params: { toolId: tab.toolId, projectId: tab.projectId, sequenceId: tab.sequenceId }
 })
+
+/**
+ * Le cran au-dessus dans la hiérarchie Outils › Projet › Séquence.
+ * `null` sur la racine : il n'y a nulle part où remonter.
+ */
+export function parentRoute(route: RouteLocationNormalizedLoaded): RouteLocationRaw | null {
+  const { toolId, projectId } = route.params as Record<string, string | undefined>
+
+  if (route.name === 'final' && toolId && projectId) {
+    return { name: 'sequences', params: { toolId, projectId } }
+  }
+  if (route.name === 'sequences' && toolId) return { name: 'projects', params: { toolId } }
+  if (route.name === 'projects') return { name: 'tools' }
+  return null
+}
 
 /** Où l'Explorer doit reprendre : le dernier niveau visité, s'il existe encore. */
 export function explorerRoute(): RouteLocationRaw {

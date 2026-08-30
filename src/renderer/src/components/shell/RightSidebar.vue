@@ -3,7 +3,7 @@
  * Panneau latéral droit : l'historique des modifications et les lignes cachées.
  * Il est pensé pour accueillir d'autres panneaux sans changer de structure.
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { useUiStore } from '@/stores/ui'
@@ -11,11 +11,12 @@ import { useDataStore } from '@/stores/data'
 import { useHistoryStore } from '@/stores/history'
 import { useUndoStore } from '@/stores/undo'
 import { useSpotlight } from '@/composables/useSpotlight'
-import { createLine, setLineHidden } from '@/lib/commands'
+import { MASK, createLine, setLineHidden, setLineMasked } from '@/lib/commands'
 import type { HistoryEntry, Line } from '@shared/models'
 import IconClose from '~icons/lucide/x'
 import IconEye from '~icons/lucide/eye'
 import IconCopy from '~icons/lucide/copy'
+import IconEyeOff from '~icons/lucide/eye-off'
 import IconUndoDot from '~icons/lucide/rotate-ccw'
 
 const ui = useUiStore()
@@ -31,6 +32,35 @@ const sequenceId = computed(() => (route.params.sequenceId as string | undefined
 const hidden = computed<Line[]>(() =>
   sequenceId.value ? data.hiddenLines(sequenceId.value) : []
 )
+
+const masked = computed<Line[]>(() =>
+  sequenceId.value ? data.maskedLines(sequenceId.value) : []
+)
+
+/**
+ * Révélations en cours dans le panneau. Comme dans la liste, c'est un état de
+ * vue : changer de séquence les referme toutes.
+ */
+const revealed = ref(new Set<string>())
+watch(sequenceId, () => revealed.value.clear())
+
+function toggleReveal(id: string): void {
+  const next = new Set(revealed.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  revealed.value = next
+}
+
+/** Ce qu'on affiche pour une ligne : son texte, ou des points. */
+const display = (line: Line): string => {
+  if (line.masked && !revealed.value.has(line.id)) return MASK
+  return line.content || '(vide)'
+}
+
+function unmask(line: Line): void {
+  undo.run(setLineMasked(line.id, false))
+  void spot(line.id)
+}
 
 /** Sur une vue finale on filtre sur la séquence ; ailleurs on montre tout. */
 const entries = computed<HistoryEntry[]>(() =>
@@ -67,7 +97,8 @@ function copy(line: Line): void {
 
 const panels = [
   { key: 'history', label: 'Historique' },
-  { key: 'hidden', label: 'Lignes cachées' }
+  { key: 'hidden', label: 'Cachées' },
+  { key: 'masked', label: 'Masquées' }
 ] as const
 </script>
 
@@ -94,6 +125,9 @@ const panels = [
         {{ panel.label }}
         <span v-if="panel.key === 'hidden' && hidden.length" class="ml-1 text-app-accent">
           {{ hidden.length }}
+        </span>
+        <span v-if="panel.key === 'masked' && masked.length" class="ml-1 text-app-accent">
+          {{ masked.length }}
         </span>
       </button>
       <button
@@ -133,8 +167,8 @@ const panels = [
       </ul>
     </div>
 
-    <!-- Lignes cachées -->
-    <div v-else class="min-h-0 flex-1 overflow-auto p-2">
+    <!-- Lignes cachées : retirées de la liste, elles ne vivent plus qu'ici -->
+    <div v-else-if="ui.sidebar.panel === 'hidden'" class="min-h-0 flex-1 overflow-auto p-2">
       <p v-if="!sequenceId" class="p-2 text-[12px] text-app-muted">
         Ouvrez une séquence pour voir ses lignes cachées.
       </p>
@@ -149,7 +183,7 @@ const panels = [
           :data-test-hidden="line.id"
         >
           <span class="min-w-0 flex-1 font-mono text-[12px] wrap-break-word text-app-muted">
-            {{ line.content || '(vide)' }}
+            {{ display(line) }}
           </span>
           <button
             class="shrink-0 rounded p-1 text-app-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-app-text"
@@ -165,6 +199,52 @@ const panels = [
             @click="unhide(line)"
           >
             <IconEye class="size-3.5" />
+          </button>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Lignes masquées : l'inventaire des secrets de la séquence. On peut les
+         copier sans jamais les afficher. -->
+    <div v-else class="min-h-0 flex-1 overflow-auto p-2">
+      <p v-if="!sequenceId" class="p-2 text-[12px] text-app-muted">
+        Ouvrez une séquence pour voir ses lignes masquées.
+      </p>
+      <p v-else-if="masked.length === 0" class="p-2 text-[12px] text-app-muted">
+        Aucune ligne masquée dans cette séquence.
+      </p>
+      <ul class="flex flex-col gap-0.5">
+        <li
+          v-for="line in masked"
+          :key="line.id"
+          class="group flex items-start gap-1 rounded px-2 py-1.5 hover:bg-app-surface-2"
+          :data-test-masked-row="line.id"
+        >
+          <span class="min-w-0 flex-1 font-mono text-[12px] wrap-break-word text-app-muted">
+            {{ display(line) }}
+          </span>
+          <button
+            class="shrink-0 rounded p-1 transition-colors"
+            :class="revealed.has(line.id) ? 'text-app-accent' : 'text-app-muted hover:text-app-text'"
+            :title="revealed.has(line.id) ? 'Masquer à nouveau' : 'Révéler'"
+            @click="toggleReveal(line.id)"
+          >
+            <component :is="revealed.has(line.id) ? IconEyeOff : IconEye" class="size-3.5" />
+          </button>
+          <button
+            class="shrink-0 rounded p-1 text-app-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-app-text"
+            title="Copier sans révéler"
+            @click="copy(line)"
+          >
+            <IconCopy class="size-3.5" />
+          </button>
+          <button
+            class="shrink-0 rounded p-1 text-app-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-app-accent"
+            title="Ne plus masquer"
+            :data-test-unmask="line.id"
+            @click="unmask(line)"
+          >
+            <IconUndoDot class="size-3.5" />
           </button>
         </li>
       </ul>

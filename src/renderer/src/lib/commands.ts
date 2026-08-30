@@ -1,4 +1,5 @@
 import { useDataStore } from '@/stores/data'
+import { useHistoryStore } from '@/stores/history'
 import { newId, now } from '@/lib/id'
 import type { EntityType, HistoryAction, Line, Project, Sequence } from '@shared/models'
 
@@ -37,6 +38,21 @@ const short = (text: string, max = 32): string => {
 }
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+
+/** Points affichés à la place d'un secret, en nombre fixe : la longueur d'un
+ *  mot de passe est déjà une information. */
+export const MASK = '••••••••'
+
+/**
+ * Libellé sûr pour l'historique. Le journal est lisible dans le panneau
+ * latéral et persisté en clair : le contenu d'une ligne masquée n'y entre pas.
+ */
+function labelOf(lineId: string, fallback = ''): string {
+  const data = useDataStore()
+  const line = data.line(lineId)
+  if (line?.masked) return MASK
+  return short(line?.content ?? fallback)
+}
 
 /**
  * Reconstitue le chemin complet d'une séquence : après une annulation, le
@@ -232,6 +248,7 @@ export function createLine(sequenceId: string, content: string, at?: number): Co
     content,
     comment: '',
     hidden: false,
+    masked: false,
     order: at ?? data.linesOfSequence(sequenceId).length,
     createdAt: stamp,
     updatedAt: stamp
@@ -253,7 +270,7 @@ export function updateLine(id: string, content: string): Command {
   const data = useDataStore()
   const previous = data.line(id)?.content ?? ''
   return {
-    label: `Modifier « ${short(content)} »`,
+    label: `Modifier « ${data.line(id)?.masked ? MASK : short(content)} »`,
     action: 'update',
     entityType: 'line',
     entityId: id,
@@ -273,7 +290,7 @@ export function deleteLine(id: string): Command {
   const line = clone(data.line(id)!)
   const index = data.linesOfSequence(line.sequenceId).findIndex((l) => l.id === id)
   return {
-    label: `Supprimer « ${short(line.content)} »`,
+    label: `Supprimer « ${line.masked ? MASK : short(line.content)} »`,
     action: 'delete',
     entityType: 'line',
     entityId: id,
@@ -289,7 +306,7 @@ export function setLineHidden(id: string, hidden: boolean): Command {
   const data = useDataStore()
   const line = data.line(id)
   return {
-    label: hidden ? `Cacher « ${short(line?.content ?? '')} »` : `Réafficher « ${short(line?.content ?? '')} »`,
+    label: hidden ? `Cacher « ${labelOf(id)} »` : `Réafficher « ${labelOf(id)} »`,
     action: hidden ? 'hide' : 'unhide',
     entityType: 'line',
     entityId: id,
@@ -302,12 +319,37 @@ export function setLineHidden(id: string, hidden: boolean): Command {
   }
 }
 
+/**
+ * Bascule le masquage. Le libellé est calculé avant l'exécution : démasquer
+ * une ligne ne doit pas faire apparaître son contenu dans le journal.
+ */
+export function setLineMasked(id: string, masked: boolean): Command {
+  const data = useDataStore()
+  const line = data.line(id)
+  return {
+    label: masked ? `Masquer « ${MASK} »` : `Démasquer une ligne`,
+    action: masked ? 'mask' : 'unmask',
+    entityType: 'line',
+    entityId: id,
+    sequenceId: line?.sequenceId ?? null,
+    focus: focusForSequence(line?.sequenceId ?? '', id),
+    before: !masked,
+    after: masked,
+    do: () => {
+      data.patchLine(id, { masked })
+      // La ligne a pu vivre en clair un moment : on efface ce qu'on en a écrit.
+      if (masked) useHistoryStore().redactLine(id)
+    },
+    undo: () => data.patchLine(id, { masked: !masked })
+  }
+}
+
 export function setLineComment(id: string, comment: string): Command {
   const data = useDataStore()
   const line = data.line(id)
   const previous = line?.comment ?? ''
   return {
-    label: comment.trim() ? `Commenter « ${short(line?.content ?? '')} »` : 'Retirer le commentaire',
+    label: comment.trim() ? `Commenter « ${labelOf(id)} »` : 'Retirer le commentaire',
     action: 'comment',
     entityType: 'line',
     entityId: id,

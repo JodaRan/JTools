@@ -5,6 +5,7 @@ import {
   SCHEMA_VERSION,
   defaultUi,
   type SidebarPanel,
+  type SplitState,
   type TabState,
   type ThemeMode,
   type UiFile,
@@ -26,6 +27,7 @@ export const useUiStore = defineStore('ui', () => {
   const activeTabId = ref<string | null>(null)
   const explorer = ref({ ...initial.explorer })
   const sidebar = ref({ ...initial.sidebar })
+  const split = ref<SplitState>({ ...initial.split })
 
   const isDark = computed(() =>
     themeMode.value === 'system' ? systemPrefersDark.value : themeMode.value === 'dark'
@@ -59,6 +61,12 @@ export const useUiStore = defineStore('ui', () => {
     setSidebar(!sidebar.value.open, panel)
   }
 
+  /** Largeur du volet principal, bornée pour qu'aucun des deux ne disparaisse. */
+  function setSplitRatio(ratio: number): void {
+    split.value.ratio = Math.min(0.8, Math.max(0.2, ratio))
+    touch()
+  }
+
   function setExplorer(toolId: string | null, projectId: string | null): void {
     explorer.value = { toolId, projectId }
     touch()
@@ -72,7 +80,8 @@ export const useUiStore = defineStore('ui', () => {
       tabs: tabs.value,
       activeTabId: activeTabId.value,
       explorer: explorer.value,
-      sidebar: sidebar.value
+      sidebar: sidebar.value,
+      split: split.value
     }
   }
 
@@ -88,6 +97,7 @@ export const useUiStore = defineStore('ui', () => {
     activeTabId.value = source.activeTabId ?? null
     explorer.value = { ...defaultUi().explorer, ...source.explorer }
     sidebar.value = { ...defaultUi().sidebar, ...source.sidebar }
+    split.value = { ...defaultUi().split, ...source.split }
   }
 
   async function init(): Promise<void> {
@@ -120,10 +130,12 @@ export const useUiStore = defineStore('ui', () => {
     activeTabId,
     explorer,
     sidebar,
+    split,
     setThemeMode,
     toggleTheme,
     setSidebar,
     toggleSidebar,
+    setSplitRatio,
     setExplorer,
     serialize,
     hydrate,
