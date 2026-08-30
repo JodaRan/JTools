@@ -23,14 +23,31 @@ Object.defineProperty(window, 'jtools', {
       shouldUseDark: vi.fn().mockResolvedValue(false),
       onChange: () => noop
     },
+    vault: {
+      status: vi.fn().mockResolvedValue({ configured: false, unlocked: false }),
+      create: vi.fn(),
+      unlock: vi.fn(),
+      unlockWithRecovery: vi.fn(),
+      lock: noop,
+      changePassphrase: vi.fn(),
+      regenerateRecovery: vi.fn(),
+      disable: vi.fn()
+    },
     store: {
       readAll: vi.fn(),
+      readUi: vi.fn(),
       write: vi.fn(),
       writeSync: vi.fn(),
       reveal: noop
     },
     clipboard: { write: vi.fn(), read: vi.fn().mockResolvedValue('') },
-    backup: { save: vi.fn(), load: vi.fn() },
+    backup: {
+      save: vi.fn(),
+      seal: vi.fn(async (contents: string) => contents),
+      load: vi.fn(),
+      openForeign: vi.fn()
+    },
+    file: { saveText: vi.fn() },
     app: { getVersion: vi.fn().mockResolvedValue('0.0.0-test') }
   }
 })

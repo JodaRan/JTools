@@ -16,6 +16,7 @@ import { useUiStore } from '@/stores/ui'
 import { useUndoStore } from '@/stores/undo'
 import { useTabsStore } from '@/stores/tabs'
 import { useAppHotkeys } from '@/composables/useAppHotkeys'
+import { useIdleLock } from '@/composables/useIdleLock'
 import { useUndoRedo } from '@/composables/useUndoRedo'
 import Breadcrumb from '@/components/shell/Breadcrumb.vue'
 import RightSidebar from '@/components/shell/RightSidebar.vue'
@@ -32,6 +33,7 @@ const tabs = useTabsStore()
 const { performUndo, performRedo } = useUndoRedo()
 
 useAppHotkeys()
+useIdleLock()
 
 const split = computed(() => tabs.splitTab)
 

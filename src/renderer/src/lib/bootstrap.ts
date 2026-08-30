@@ -2,29 +2,50 @@ import { useDataStore } from '@/stores/data'
 import { useHistoryStore } from '@/stores/history'
 import { useTabsStore } from '@/stores/tabs'
 import { useUiStore } from '@/stores/ui'
+import { useVaultStore } from '@/stores/vault'
 import { migrateData, migrateHistory, migrateUi } from '@/lib/migrate'
 
 /**
- * Charge les fichiers JSON avant le premier rendu : le thème, la géométrie et
- * les onglets doivent être connus d'emblée pour éviter tout clignotement.
+ * Le démarrage se fait en deux temps à cause du coffre.
+ *
+ * `hydrateUi` ne lit que `ui.json`, qui n'est jamais chiffré : thème, taille de
+ * fenêtre et onglets sont donc connus avant même que la passphrase soit
+ * demandée, et l'écran de déverrouillage s'affiche déjà aux bonnes couleurs.
+ *
+ * `hydrateData` ne vient qu'ensuite, une fois le coffre ouvert — ou tout de
+ * suite s'il n'y a pas de coffre.
  */
-export async function hydrateStores(): Promise<void> {
+export async function hydrateUi(): Promise<void> {
   const ui = useUiStore()
+  try {
+    ui.hydrate(migrateUi(await window.jtools.store.readUi()))
+  } catch (err) {
+    console.error('[bootstrap] ui.json illisible, réglages par défaut', err)
+  }
+  await ui.init()
+}
+
+/**
+ * Charge la donnée métier. Renvoie `false` si le stockage est chiffré et
+ * illisible — auquel cas il ne faut surtout rien hydrater : les stores
+ * partiraient à vide et la première sauvegarde écraserait le fichier.
+ */
+export async function hydrateData(): Promise<boolean> {
   const data = useDataStore()
   const history = useHistoryStore()
+  const vault = useVaultStore()
 
-  try {
-    const files = await window.jtools.store.readAll()
-    ui.hydrate(migrateUi(files.ui))
-    data.hydrate(migrateData(files.data))
-    history.hydrate(migrateHistory(files.history))
-  } catch (err) {
-    // Un stockage illisible ne doit pas empêcher l'app de s'ouvrir vide.
-    console.error('[bootstrap] chargement impossible, démarrage à vide', err)
+  const result = await window.jtools.store.readAll()
+
+  if (!result.ok) {
+    if (result.code === 'undecipherable') vault.failure = 'undecipherable'
+    return false
   }
+
+  data.hydrate(migrateData(result.files.data))
+  history.hydrate(migrateHistory(result.files.history))
 
   // Un onglet dont la séquence a disparu entre deux sessions n'a plus lieu d'être.
   useTabsStore().prune()
-
-  await ui.init()
+  return true
 }

@@ -56,6 +56,7 @@ et dépose ses captures dans `.shots/`. Il faut avoir construit l'app avant
 | `Ctrl+Z` / `Ctrl+Y` | annule / rétablit, partout dans l'app |
 | `Ctrl+B` | panneau latéral (historique, lignes cachées, lignes masquées) |
 | `Ctrl+Tab` / `Ctrl+1…9` | navigue entre les onglets |
+| `Ctrl+L` | verrouille le coffre immédiatement |
 | `Retour arrière` (hors champ) | remonte au niveau supérieur |
 | `Alt+←` | remonte au niveau supérieur, y compris depuis un champ |
 
@@ -80,9 +81,53 @@ en clair sur le disque. Une ligne masquée n'est donc plus restaurable depuis le
 panneau « Historique » — elle reste annulable par `Ctrl+Z`, dont la pile ne vit
 qu'en mémoire.
 
-> Le masquage protège des regards par-dessus l'épaule et d'un partage d'écran,
-> **pas** du contenu du disque : `data.json` reste en clair. Le chiffrement au
-> repos n'est pas encore en place.
+> Le masquage protège des regards par-dessus l'épaule et d'un partage d'écran.
+> Pour le disque, c'est le coffre qui s'en charge — voir ci-dessous.
+
+## Chiffrement
+
+Le coffre est **facultatif** : JTools le propose au premier lancement, et on
+peut l'activer plus tard depuis le menu › Sécurité.
+
+Actif, il chiffre `data.json`, `history.json` et **les exports** en AES-256-GCM.
+Le mot de passe n'est demandé qu'au démarrage. Il ne chiffre rien directement :
+il dérive, par scrypt, une clé qui en encapsule une autre, tirée au hasard, qui
+chiffre réellement les fichiers. C'est ce détour qui permet de changer de mot de
+passe sans rien rechiffrer — seule l'enveloppe est refaite.
+
+Un export emporte ce matériel de clé : le JSON se copie d'une machine à l'autre
+et s'ouvre avec le mot de passe du poste d'origine, ou sa clé de secours.
+
+### Ce qu'il protège, et ce qu'il ne protège pas
+
+| Menace | Couvert |
+|---|---|
+| Disque volé, image, sauvegarde du profil | oui |
+| Autre compte Windows, autre machine | oui |
+| L'export qu'on copie ou synchronise | oui |
+| Regard par-dessus l'épaule, partage d'écran | oui, par le masquage |
+| **Malware tournant sous votre propre session** | **non** |
+
+La dernière ligne est structurelle, pas un défaut d'implémentation : ce qu'une
+application sait déchiffrer sans vous, un programme tournant sous votre compte
+le sait aussi — il peut enregistrer la frappe de la passphrase, lire la mémoire
+du processus, ou modifier l'application elle-même. Le verrouillage sur
+inactivité réduit la fenêtre d'exposition, il ne la ferme pas.
+
+Trois détails qui vont dans le même sens : le verrouillage **vide les stores**
+et la pile d'annulation, marquer une ligne masquée **expurge le journal**
+existant, et `vault.json` ne contient que des clés encapsulées.
+
+### Clé de secours et oubli
+
+Un mot de passe oublié est **définitif** : il n'y a aucune récupération. La clé
+de secours remise à l'activation est la seule porte de sortie — elle s'affiche
+une fois, et n'est stockée nulle part. Elle survit aux changements de mot de
+passe, et se régénère depuis le menu › Sécurité, ce qui invalide l'ancienne.
+
+`ui.json` reste volontairement en clair : le processus principal le lit pour
+ouvrir la fenêtre à la bonne taille, donc avant toute passphrase. Il ne porte
+que la géométrie, le thème et des identifiants opaques — jamais de noms.
 
 ## Données
 

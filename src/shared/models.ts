@@ -4,7 +4,7 @@
  * et d'une étape dans `migrate.ts`.
  */
 
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export interface Project {
   id: string
@@ -98,6 +98,16 @@ export interface SplitState {
   ratio: number
 }
 
+export interface SecurityState {
+  /**
+   * L'offre de créer un mot de passe n'est faite qu'une fois : le coffre étant
+   * facultatif, redemander à chaque lancement serait du harcèlement.
+   */
+  prompted: boolean
+  /** Minutes d'inactivité avant verrouillage. `0` désactive. */
+  idleLockMinutes: number
+}
+
 export interface UiState {
   window: WindowState
   theme: ThemeMode
@@ -108,6 +118,7 @@ export interface UiState {
   explorer: { toolId: string | null; projectId: string | null }
   sidebar: { open: boolean; panel: SidebarPanel; width: number }
   split: SplitState
+  security: SecurityState
 }
 
 export interface DataFile {
@@ -135,6 +146,26 @@ export interface BackupFile {
   history: HistoryFile
   ui: UiFile
 }
+
+/**
+ * Sauvegarde chiffrée. Elle embarque le matériel de clé du coffre qui l'a
+ * produite : le fichier s'ouvre donc sur n'importe quelle machine, avec la
+ * passphrase — ou la clé de secours — en vigueur au moment de l'export.
+ */
+export interface EncryptedBackup {
+  app: 'JTools'
+  jtools: 'encrypted'
+  v: 1
+  exportedAt: string
+  /** Contenu de `vault.json` : la clé de données, encapsulée. */
+  vault: unknown
+  payload: { nonce: string; ct: string; tag: string }
+}
+
+export const isEncryptedBackup = (value: unknown): value is EncryptedBackup =>
+  typeof value === 'object' &&
+  value !== null &&
+  (value as EncryptedBackup).jtools === 'encrypted'
 
 export const DEFAULT_WINDOW: WindowState = {
   x: null,
@@ -164,5 +195,6 @@ export const defaultUi = (): UiFile => ({
   activeTabId: null,
   explorer: { toolId: null, projectId: null },
   sidebar: { open: false, panel: 'history', width: 320 },
-  split: { tabId: null, ratio: 0.5 }
+  split: { tabId: null, ratio: 0.5 },
+  security: { prompted: false, idleLockMinutes: 15 }
 })

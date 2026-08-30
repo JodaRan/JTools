@@ -1,8 +1,9 @@
 import { useDataStore } from '@/stores/data'
+import { useHistoryStore } from '@/stores/history'
 import { useUiStore } from '@/stores/ui'
 import { flushAll } from '@/lib/persist'
-import { looksLikeBackup, migrateData, migrateUi } from '@/lib/migrate'
-import { defaultHistory, type BackupFile } from '@shared/models'
+import { looksLikeBackup, migrateData, migrateHistory, migrateUi } from '@/lib/migrate'
+import { isEncryptedBackup, type BackupFile, type EncryptedBackup } from '@shared/models'
 
 /** Sauvegarde complète en un seul objet : donnée + journal + état d'interface. */
 export function buildBackup(appVersion: string): BackupFile {
@@ -11,9 +12,7 @@ export function buildBackup(appVersion: string): BackupFile {
     appVersion,
     exportedAt: new Date().toISOString(),
     data: useDataStore().serialize(),
-    // Le journal reçoit son store en phase 6 ; la clé existe dès maintenant
-    // pour que le format de sauvegarde ne change pas ensuite.
-    history: defaultHistory(),
+    history: useHistoryStore().serialize(),
     ui: useUiStore().serialize()
   }
 }
@@ -22,9 +21,13 @@ export function backupToText(appVersion: string): string {
   return JSON.stringify(buildBackup(appVersion), null, 2)
 }
 
-/** Copie la sauvegarde dans le presse-papiers. */
-export function copyBackup(appVersion: string): void {
-  window.jtools.clipboard.write(backupToText(appVersion))
+/**
+ * Copie la sauvegarde dans le presse-papiers. Coffre actif, c'est la version
+ * chiffrée qui part — le presse-papiers est lisible par tout le poste.
+ */
+export async function copyBackup(appVersion: string): Promise<void> {
+  const sealed = await window.jtools.backup.seal(backupToText(appVersion))
+  window.jtools.clipboard.write(sealed)
 }
 
 /** Écrit la sauvegarde dans un fichier choisi par l'utilisateur. */
@@ -47,6 +50,7 @@ export function applyBackup(input: unknown, restoreUi = true): RestoreResult {
   }
   const backup = input as BackupFile
   useDataStore().hydrate(migrateData(backup.data))
+  useHistoryStore().hydrate(migrateHistory(backup.history))
   if (restoreUi) useUiStore().hydrate(migrateUi(backup.ui))
   flushAll()
   return { ok: true }
@@ -61,8 +65,26 @@ export function applyBackupText(text: string, restoreUi = true): RestoreResult {
   }
 }
 
-export async function loadBackupFromFile(restoreUi = true): Promise<RestoreResult | null> {
+/**
+ * Ouvre un fichier de sauvegarde. S'il est chiffré, `askSecret` est sollicité
+ * pour obtenir la passphrase — celle du poste d'origine, qui n'est pas
+ * forcément celle d'ici : c'est ce qui rend l'export réellement portable.
+ */
+export async function loadBackupFromFile(
+  askSecret: () => Promise<string | null>,
+  restoreUi = true
+): Promise<RestoreResult | null> {
   const payload = await window.jtools.backup.load()
   if (payload === null) return null
-  return applyBackup(payload, restoreUi)
+
+  if (!isEncryptedBackup(payload)) return applyBackup(payload, restoreUi)
+
+  const secret = await askSecret()
+  if (!secret) return null
+
+  const opened = await window.jtools.backup.openForeign(payload as EncryptedBackup, secret)
+  if (!opened) {
+    return { ok: false, reason: 'Mot de passe ou clé de secours incorrect.' }
+  }
+  return applyBackup(opened.backup, restoreUi)
 }

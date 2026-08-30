@@ -4,6 +4,7 @@ import { registerSource, scheduleSave } from '@/lib/persist'
 import {
   SCHEMA_VERSION,
   defaultUi,
+  type SecurityState,
   type SidebarPanel,
   type SplitState,
   type TabState,
@@ -28,6 +29,7 @@ export const useUiStore = defineStore('ui', () => {
   const explorer = ref({ ...initial.explorer })
   const sidebar = ref({ ...initial.sidebar })
   const split = ref<SplitState>({ ...initial.split })
+  const security = ref<SecurityState>({ ...initial.security })
 
   const isDark = computed(() =>
     themeMode.value === 'system' ? systemPrefersDark.value : themeMode.value === 'dark'
@@ -67,6 +69,11 @@ export const useUiStore = defineStore('ui', () => {
     touch()
   }
 
+  function setSecurity(patch: Partial<SecurityState>): void {
+    security.value = { ...security.value, ...patch }
+    touch()
+  }
+
   function setExplorer(toolId: string | null, projectId: string | null): void {
     explorer.value = { toolId, projectId }
     touch()
@@ -81,7 +88,8 @@ export const useUiStore = defineStore('ui', () => {
       activeTabId: activeTabId.value,
       explorer: explorer.value,
       sidebar: sidebar.value,
-      split: split.value
+      split: split.value,
+      security: security.value
     }
   }
 
@@ -98,6 +106,7 @@ export const useUiStore = defineStore('ui', () => {
     explorer.value = { ...defaultUi().explorer, ...source.explorer }
     sidebar.value = { ...defaultUi().sidebar, ...source.sidebar }
     split.value = { ...defaultUi().split, ...source.split }
+    security.value = { ...defaultUi().security, ...source.security }
   }
 
   async function init(): Promise<void> {
@@ -131,11 +140,13 @@ export const useUiStore = defineStore('ui', () => {
     explorer,
     sidebar,
     split,
+    security,
     setThemeMode,
     toggleTheme,
     setSidebar,
     toggleSidebar,
     setSplitRatio,
+    setSecurity,
     setExplorer,
     serialize,
     hydrate,

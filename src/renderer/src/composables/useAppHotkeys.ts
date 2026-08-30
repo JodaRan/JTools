@@ -3,6 +3,7 @@ import { useTabsStore } from '@/stores/tabs'
 import { useNavigation } from '@/composables/useNavigation'
 import { useUndoRedo } from '@/composables/useUndoRedo'
 import { useUiStore } from '@/stores/ui'
+import { useVaultStore } from '@/stores/vault'
 import { registerHotkeys } from '@/lib/hotkeys'
 import { parentRoute, routeForTab } from '@/lib/navigation'
 import { useRoute, useRouter } from 'vue-router'
@@ -11,6 +12,7 @@ import { useRoute, useRouter } from 'vue-router'
 export function useAppHotkeys(): void {
   const tabs = useTabsStore()
   const ui = useUiStore()
+  const vault = useVaultStore()
   const router = useRouter()
   const route = useRoute()
   const { goToExplorer } = useNavigation()
@@ -41,6 +43,8 @@ export function useAppHotkeys(): void {
       { key: 'y', ctrl: true, inFields: true, run: () => void performRedo() },
       { key: 'z', ctrl: true, shift: true, inFields: true, run: () => void performRedo() },
       { key: 'b', ctrl: true, inFields: true, run: () => ui.toggleSidebar() },
+      // Verrouillage immédiat, quoi qu'on soit en train de taper.
+      { key: 'l', ctrl: true, inFields: true, run: () => vault.active && vault.lock() },
       // Retour arrière remonte d'un niveau. `inFields` reste à faux : dans un
       // champ, la touche doit d'abord effacer du texte — et sur une ligne vide,
       // supprimer la ligne (voir LineRow).

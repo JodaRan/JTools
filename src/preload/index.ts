@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   BackupFile,
+  EncryptedBackup,
   DataFile,
   HistoryFile,
   ThemeMode,
@@ -9,6 +10,16 @@ import type {
 } from '../shared/models'
 
 type StoreName = 'data' | 'history' | 'ui'
+
+export type VaultStatus = { configured: boolean; unlocked: boolean }
+
+export type UnlockResult =
+  | { ok: true }
+  | { ok: false; reason: 'no-vault' | 'bad-passphrase' | 'bad-recovery' | 'unreadable' }
+
+export type ReadAllResult =
+  | { ok: true; files: { data: DataFile; history: HistoryFile; ui: UiFile } }
+  | { ok: false; code: 'locked' | 'undecipherable' }
 
 function subscribe<T>(channel: string, callback: (value: T) => void): () => void {
   const listener = (_event: unknown, value: T): void => callback(value)
@@ -36,9 +47,30 @@ const api = {
     shouldUseDark: (): Promise<boolean> => ipcRenderer.invoke('theme:should-use-dark'),
     onChange: (cb: (dark: boolean) => void): (() => void) => subscribe('theme:changed', cb)
   },
+  vault: {
+    status: (): Promise<VaultStatus> => ipcRenderer.invoke('vault:status'),
+    /** Active le coffre et chiffre le stockage existant. Rend la clé de secours. */
+    create: (passphrase: string): Promise<{ ok: true; recoveryKey: string }> =>
+      ipcRenderer.invoke('vault:create', passphrase),
+    unlock: (passphrase: string): Promise<UnlockResult> =>
+      ipcRenderer.invoke('vault:unlock', passphrase),
+    unlockWithRecovery: (key: string): Promise<UnlockResult> =>
+      ipcRenderer.invoke('vault:unlock-recovery', key),
+    /** Efface la clé côté principal. Purger les écritures en attente AVANT. */
+    lock: (): void => ipcRenderer.send('vault:lock'),
+    changePassphrase: (current: string, next: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('vault:change-passphrase', current, next),
+    regenerateRecovery: (
+      passphrase: string
+    ): Promise<{ ok: boolean; recoveryKey?: string }> =>
+      ipcRenderer.invoke('vault:regenerate-recovery', passphrase),
+    disable: (passphrase: string): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('vault:disable', passphrase)
+  },
   store: {
-    readAll: (): Promise<{ data: DataFile; history: HistoryFile; ui: UiFile }> =>
-      ipcRenderer.invoke('store:read-all'),
+    readAll: (): Promise<ReadAllResult> => ipcRenderer.invoke('store:read-all'),
+    /** Lisible même coffre fermé : thème, géométrie, onglets. */
+    readUi: (): Promise<UiFile> => ipcRenderer.invoke('store:read-ui'),
     /** `contents` est du JSON déjà sérialisé (voir `lib/persist.ts`). */
     write: (name: StoreName, contents: string): void =>
       ipcRenderer.send('store:write', name, contents),
@@ -55,7 +87,21 @@ const api = {
   backup: {
     /** Renvoie le chemin choisi, ou `null` si l'utilisateur annule. */
     save: (contents: string): Promise<string | null> => ipcRenderer.invoke('backup:save', contents),
-    load: (): Promise<BackupFile | null> => ipcRenderer.invoke('backup:load')
+    /** Chiffre une sauvegarde destinée au presse-papiers, si le coffre est actif. */
+    seal: (contents: string): Promise<string> => ipcRenderer.invoke('backup:seal', contents),
+    load: (): Promise<BackupFile | EncryptedBackup | null> =>
+      ipcRenderer.invoke('backup:load'),
+    /** Ouvre une sauvegarde chiffrée venue d'un autre poste. */
+    openForeign: (
+      envelope: EncryptedBackup,
+      secret: string
+    ): Promise<{ ok: true; backup: BackupFile } | null> =>
+      ipcRenderer.invoke('backup:open-foreign', envelope, secret)
+  },
+  file: {
+    /** Enregistre du texte en clair, sans passer par le coffre. */
+    saveText: (defaultName: string, contents: string): Promise<string | null> =>
+      ipcRenderer.invoke('file:save-text', defaultName, contents)
   },
   app: {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version')

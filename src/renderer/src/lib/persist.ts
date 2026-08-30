@@ -6,6 +6,17 @@ const timers = new Map<StoreName, number>()
 const DEFAULT_DELAY = 400
 
 /**
+ * Coupe-circuit d'écriture. Coffre verrouillé, le processus principal refuse
+ * d'écrire un fichier chiffrable — inutile de lui envoyer des demandes vouées
+ * à échouer, et surtout inutile de sérialiser des données pour rien.
+ */
+let writable = true
+
+export function setWritable(value: boolean): void {
+  writable = value
+}
+
+/**
  * Un store déclare comment se sérialiser ; `scheduleSave` se charge du reste.
  * Le renderer est le seul écrivain des fichiers JSON : le processus principal
  * ne fait que lire au démarrage.
@@ -30,6 +41,9 @@ export function scheduleSave(name: StoreName, delay = DEFAULT_DELAY): void {
 export function flush(name: StoreName, sync = false): void {
   const serialize = sources.get(name)
   if (!serialize) return
+  // `ui.json` n'est jamais chiffré : il reste enregistrable coffre fermé,
+  // sans quoi la géométrie de la fenêtre ne survivrait pas au verrouillage.
+  if (!writable && name !== 'ui') return
   // Sérialisé ici : les états sont des proxies Vue, que le clonage structuré
   // de l'IPC refuse de transporter.
   const contents = JSON.stringify(serialize(), null, 2)

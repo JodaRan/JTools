@@ -16,7 +16,17 @@ export const SHOTS = process.env.SCREENSHOT_DIR || path.join(APP_DIR, '.shots')
 /** Là où Electron range userData sous Windows, d'après le `name` du package. */
 export const STORAGE_DIR = path.join(process.env.APPDATA ?? '', 'jtools', 'JTools')
 
-export async function launchApp({ port = 9222, quiet = false } = {}) {
+/**
+ * `passphrase` déverrouille automatiquement au démarrage ; `manualUnlock` rend
+ * la main sur l'écran de déverrouillage, pour les scripts qui veulent le
+ * piloter eux-mêmes.
+ */
+export async function launchApp({
+  port = 9222,
+  quiet = false,
+  passphrase = null,
+  manualUnlock = false
+} = {}) {
   fs.mkdirSync(SHOTS, { recursive: true })
 
   // L'hôte VSCode exporte ELECTRON_RUN_AS_NODE=1 ; hérité, il ferait démarrer
@@ -52,10 +62,7 @@ export async function launchApp({ port = 9222, quiet = false } = {}) {
     if (m.type() === 'error') console.log('[console:error]', m.text())
   })
 
-  // Le fil d'Ariane est le seul élément présent sur toutes les routes.
-  await page.waitForSelector('[data-test-crumb]', { timeout: 20_000 })
-
-  return {
+  const session = {
     page,
     browser,
     child,
@@ -83,4 +90,32 @@ export async function launchApp({ port = 9222, quiet = false } = {}) {
       await new Promise((r) => setTimeout(r, 600))
     }
   }
+
+  // Au premier lancement, JTools propose de chiffrer ; coffre actif, il demande
+  // la passphrase. Dans les deux cas il faut franchir cette porte avant que le
+  // fil d'Ariane — seul élément commun à toutes les routes — n'existe.
+  await page.waitForSelector('[data-test-crumb], [data-test="vault-gate"]', {
+    timeout: 20_000
+  })
+
+  const locked = (await page.$('[data-test="unlock-input"]')) !== null
+
+  // Le script prend la main : on ne franchit pas la porte pour lui.
+  if (locked && manualUnlock) return session
+
+  if (locked) {
+    if (!passphrase) {
+      await session.close({ viaUi: false })
+      throw new Error('Application verrouillée : passphrase requise.')
+    }
+    await page.fill('[data-test="unlock-input"] input', passphrase)
+    await page.click('[data-test="unlock-submit"]')
+  } else if (await page.$('[data-test="setup-decline"]')) {
+    // Les scripts qui ne testent pas le coffre travaillent en clair.
+    await page.click('[data-test="setup-decline"]')
+  }
+
+  // La dérivation scrypt coûte environ une seconde au déverrouillage.
+  await page.waitForSelector('[data-test-crumb]', { timeout: 20_000 })
+  return session
 }

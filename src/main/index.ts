@@ -1,6 +1,7 @@
 import { app, BrowserWindow, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
-import { readStore } from './storage'
+import { readStore, storageDir } from './storage'
+import { initVault } from './vault'
 import { sanitizeBounds, trackWindow } from './window-state'
 import { registerIpc } from './ipc'
 import type { UiFile } from '../shared/models'
@@ -73,6 +74,9 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   void app.whenReady().then(async () => {
+    // Avant tout accès disque : c'est lui qui décide si les fichiers sont
+    // chiffrés ou non.
+    initVault(storageDir())
     registerIpc(() => mainWindow)
     await createWindow()
 

@@ -66,6 +66,8 @@ export function migrateUi(input: unknown): UiFile {
     explorer: { ...base.explorer, ...(isRecord(input.explorer) ? input.explorer : {}) },
     sidebar: { ...base.sidebar, ...(isRecord(input.sidebar) ? input.sidebar : {}) },
     split: { ...base.split, ...(isRecord(input.split) ? input.split : {}) },
+    // v2 → v3 : réglages du coffre.
+    security: { ...base.security, ...(isRecord(input.security) ? input.security : {}) },
     tabs: asArray(input.tabs)
   } as UiFile
 }
