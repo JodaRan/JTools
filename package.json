@@ -1,6 +1,6 @@
 {
   "name": "jtools",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "JTools — boîte à outils personnelle",
   "main": "./out/main/index.js",
   "author": "Joda RAKOTO",

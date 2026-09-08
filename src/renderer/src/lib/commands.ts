@@ -168,12 +168,18 @@ export function createSequence(projectId: string, name: string): Command {
     createdAt: stamp,
     updatedAt: stamp
   }
+  // La séquence n'existe pas encore : le repère se construit depuis son projet.
+  // Sans lui, annuler la création laisserait l'utilisateur devant un « cette
+  // séquence n'existe plus » au lieu de le ramener à la liste.
+  const project = data.project(projectId)
+
   return {
     label: `Créer la séquence « ${short(sequence.name)} »`,
     action: 'create',
     entityType: 'sequence',
     entityId: sequence.id,
     sequenceId: sequence.id,
+    focus: project ? { toolId: project.toolId, projectId, sequenceId: sequence.id } : undefined,
     after: clone(sequence),
     do: () => data.insertSequence(clone(sequence)),
     undo: () => data.removeSequence(sequence.id)

@@ -188,6 +188,15 @@ function commitGhost(): void {
     ghostValue.value = ''
     return
   }
+  // La séquence a pu disparaître sous nos pieds : typiquement un Ctrl+Z qui
+  // annule sa création pendant qu'on tapait encore. Le démontage de la vue
+  // fait perdre le focus au champ, donc passe ici. Valider malgré tout
+  // créerait une ligne orpheline — et cette commande de trop viderait la pile
+  // de rétablissement, rendant l'annulation irréversible.
+  if (!data.sequence(props.sequenceId)) {
+    ghostValue.value = ''
+    return
+  }
   undo.run(createLine(props.sequenceId, content))
   ghostValue.value = ''
   if (ghost.value) ghost.value.style.height = 'auto'
@@ -221,6 +230,23 @@ function onGhostPaste(event: ClipboardEvent): void {
   ghostValue.value = ''
   if (ghost.value) ghost.value.style.height = 'auto'
   void focusGhost()
+}
+
+/**
+ * Ctrl+Z dans la ligne fantôme.
+ *
+ * Tant qu'il reste du texte non validé, on laisse le champ faire son
+ * annulation native — c'est le réflexe qu'on a d'un éditeur de texte : « ce
+ * que je viens de taper est faux, j'annule ». Le raccourci global ne doit pas
+ * passer devant et remonter jusqu'à la création de la séquence.
+ *
+ * Champ vide, on ne bloque plus rien : l'annulation applicative reprend la
+ * main, et l'on remonte alors dans l'historique des actions.
+ */
+function onGhostUndo(event: KeyboardEvent): void {
+  if (ghostValue.value === '') return
+  // Sans `preventDefault` : c'est justement l'action par défaut qu'on veut.
+  event.stopPropagation()
 }
 
 function onGhostBackspace(event: KeyboardEvent): void {
@@ -338,6 +364,7 @@ function onDragEnd(): void {
         class="min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 font-mono text-[13px] leading-5 text-app-text outline-none placeholder:font-sans placeholder:text-app-muted"
         @input="growGhost"
         @paste="onGhostPaste"
+        @keydown.ctrl.z.exact="onGhostUndo"
         @keydown.enter.exact.prevent="onGhostEnter"
         @keydown.backspace="onGhostBackspace"
         @blur="commitGhost"

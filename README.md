@@ -54,6 +54,7 @@ et dépose ses captures dans `.shots/`. Il faut avoir construit l'app avant
 | `Alt+↑` / `Alt+↓` | déplace la ligne |
 | `Ctrl+D` | duplique la ligne |
 | `Ctrl+Z` / `Ctrl+Y` | annule / rétablit, partout dans l'app |
+| `Ctrl+Z` (frappe en cours) | annule d'abord le texte tapé, pas l'action précédente |
 | `Ctrl+B` | panneau latéral (historique, lignes cachées, lignes masquées) |
 | `Ctrl+Tab` / `Ctrl+1…9` | navigue entre les onglets |
 | `Ctrl+L` | verrouille le coffre immédiatement |

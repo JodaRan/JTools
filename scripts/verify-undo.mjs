@@ -6,6 +6,7 @@
  * Usage : `node scripts/verify-undo.mjs`
  */
 import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { launchApp, STORAGE_DIR } from './app-driver.mjs'
 
 const results = []
@@ -145,6 +146,76 @@ console.log('stockage remis à zéro :', STORAGE_DIR)
   )
   check('panneau actif mémorisé', panel, true)
   await close()
+}
+
+// ————————————— Séquence neuve, texte non validé, Ctrl+Z —————————————
+//
+// Le réflexe venu du bloc-notes : « ce que je viens de taper est faux, j'annule ».
+// Il ne doit pas emporter la séquence qu'on vient de créer.
+fs.rmSync(STORAGE_DIR, { recursive: true, force: true })
+
+{
+  const { page, shot, close } = await launchApp()
+
+  await page.click('[data-test-tool="sequences"]')
+  await page.waitForTimeout(250)
+  await addItem(page, 'Projet Neuf')
+  await page.click('[data-test-item="Projet Neuf"]')
+  await page.waitForTimeout(250)
+  await addItem(page, 'Sequence Neuve')
+  await page.click('[data-test-item="Sequence Neuve"]')
+  await page.waitForTimeout(400)
+
+  // On tape sans valider ni quitter le champ.
+  await page.click('[data-test="ghost-input"]')
+  await page.type('[data-test="ghost-input"]', 'commande incorrecte')
+  await page.waitForTimeout(300)
+
+  await page.keyboard.press('Control+z')
+  await page.waitForTimeout(600)
+
+  check(
+    'le premier Ctrl+Z ne touche pas à la séquence',
+    (await crumbs(page)).at(-1),
+    'Sequence Neuve'
+  )
+  check(
+    'il annule la frappe en cours',
+    await page.inputValue('[data-test="ghost-input"]'),
+    ''
+  )
+  check('et ne crée aucune ligne', (await lines(page)).length, 0)
+  await shot('p11-01-frappe-annulee')
+
+  // Champ vide : l'annulation applicative reprend la main et retire la séquence.
+  await page.keyboard.press('Control+z')
+  await page.waitForTimeout(700)
+  check(
+    'le second Ctrl+Z ramène à la liste des séquences',
+    (await crumbs(page)).at(-1),
+    'Projet Neuf'
+  )
+  check('la séquence a bien disparu', await rowNames(page), [])
+  await shot('p11-02-sequence-annulee')
+
+  // Et le rétablissement fonctionne — c'est ce que la ligne orpheline cassait.
+  await page.keyboard.press('Control+y')
+  await page.waitForTimeout(700)
+  check('Ctrl+Y rétablit la séquence', await rowNames(page), ['Sequence Neuve'])
+  await shot('p11-03-sequence-retablie')
+
+  await close()
+}
+
+// Aucune ligne ne doit traîner sans séquence.
+{
+  const data = JSON.parse(fs.readFileSync(path.join(STORAGE_DIR, 'data.json'), 'utf-8'))
+  const vivantes = new Set(data.sequences.map((s) => s.id))
+  check(
+    'aucune ligne orpheline sur le disque',
+    data.lines.filter((l) => !vivantes.has(l.sequenceId)).length,
+    0
+  )
 }
 
 const failed = results.filter((r) => !r.ok)
