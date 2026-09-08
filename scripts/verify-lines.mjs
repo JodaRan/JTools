@@ -5,7 +5,7 @@
  * Usage : `node scripts/verify-lines.mjs`
  */
 import * as fs from 'node:fs'
-import { launchApp, STORAGE_DIR } from './app-driver.mjs'
+import { assertIsolated, launchApp, STORAGE_DIR } from './app-driver.mjs'
 
 const results = []
 const check = (label, actual, expected) => {
@@ -23,8 +23,10 @@ async function addViaGhost(page, text) {
   await page.waitForTimeout(150)
 }
 
+// Ne jamais effacer ailleurs que dans le profil de test.
+assertIsolated()
 fs.rmSync(STORAGE_DIR, { recursive: true, force: true })
-console.log('stockage remis à zéro :', STORAGE_DIR)
+console.log('stockage de test remis à zéro :', STORAGE_DIR)
 
 {
   const { page, shot, close } = await launchApp()

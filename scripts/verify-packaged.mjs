@@ -8,7 +8,12 @@ import { chromium } from 'playwright-core'
 import { spawn } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { APP_DIR, SHOTS } from './app-driver.mjs'
+import { APP_DIR, SHOTS, TEST_PROFILE, assertIsolated } from './app-driver.mjs'
+
+// Même précaution que pour les autres scripts : le binaire packagé ne doit pas
+// écrire dans le profil réel de l'utilisateur.
+assertIsolated()
+fs.mkdirSync(TEST_PROFILE, { recursive: true })
 
 const exe = path.join(APP_DIR, 'dist/win-unpacked/JTools.exe')
 if (!fs.existsSync(exe)) {
@@ -19,7 +24,11 @@ if (!fs.existsSync(exe)) {
 const env = { ...process.env }
 delete env.ELECTRON_RUN_AS_NODE
 
-const child = spawn(exe, ['--remote-debugging-port=9333'], { env, stdio: ['ignore', 'pipe', 'pipe'] })
+const child = spawn(
+  exe,
+  ['--remote-debugging-port=9333', `--user-data-dir=${TEST_PROFILE}`],
+  { env, stdio: ['ignore', 'pipe', 'pipe'] }
+)
 child.stderr.on('data', (d) => process.stderr.write(`[app] ${d}`))
 
 const deadline = Date.now() + 30_000

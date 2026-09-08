@@ -152,6 +152,26 @@ passe, et se régénère depuis le menu › Sécurité, ce qui invalide l'ancien
 ouvrir la fenêtre à la bonne taille, donc avant toute passphrase. Il ne porte
 que la géométrie, le thème et des identifiants opaques — jamais de noms.
 
+## Sécurité des données pendant les tests
+
+Les scripts de `pnpm verify` effacent le stockage avant chaque scénario. Ils
+tournent pour cela dans un **profil Electron dédié**, passé à l'exécutable via
+`--user-data-dir` et rangé dans le dossier temporaire du système : ils ne
+voient pas `%APPDATA%\jtools` et ne peuvent donc pas l'effacer. Un garde-fou
+(`assertIsolated`, couvert par `test/isolation.spec.ts`) refuse de démarrer si
+la cible retombait sur le dossier réel.
+
+Filet manuel, à prendre avant une manipulation risquée :
+
+```
+pnpm data:save             instantané daté du stockage réel
+pnpm data:list             liste les instantanés
+pnpm data:restore <nom>    restaure (en sauvegardant d'abord l'état courant)
+```
+
+Les instantanés sont rangés dans `%LOCALAPPDATA%\JTools-snapshots`, hors du
+dépôt. Coffre actif, ils héritent du chiffrement ; sinon ils sont en clair.
+
 ## Données
 
 Tout est en JSON dans `%APPDATA%/jtools/JTools/` :

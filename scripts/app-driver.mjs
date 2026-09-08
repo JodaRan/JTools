@@ -8,13 +8,54 @@
 import { chromium } from 'playwright-core'
 import { spawn } from 'node:child_process'
 import * as fs from 'node:fs'
+import * as os from 'node:os'
 import * as path from 'node:path'
 
 export const APP_DIR = path.resolve(import.meta.dirname, '..')
 export const SHOTS = process.env.SCREENSHOT_DIR || path.join(APP_DIR, '.shots')
 
-/** Là où Electron range userData sous Windows, d'après le `name` du package. */
-export const STORAGE_DIR = path.join(process.env.APPDATA ?? '', 'jtools', 'JTools')
+/**
+ * Profil Electron dédié aux tests, dans le dossier temporaire du système.
+ *
+ * Les scripts de vérification effacent le stockage avant de commencer. Tant
+ * qu'ils visaient le profil par défaut, ils détruisaient les données réelles de
+ * l'utilisateur — ce qui est arrivé. `--user-data-dir` déplace `userData`
+ * ailleurs : les tests ne peuvent plus voir ce dossier, et encore moins
+ * l'effacer. Bénéfice de bord, le verrou d'instance unique étant lié au profil,
+ * un test ne réveille plus l'application ouverte à côté.
+ */
+export const TEST_PROFILE = path.join(os.tmpdir(), 'jtools-e2e-profile')
+
+/** Le sous-dossier que `storageDir()` crée dans le profil. */
+export const STORAGE_DIR = path.join(TEST_PROFILE, 'JTools')
+
+/** Le dossier réel de l'application, que les tests ne doivent jamais toucher. */
+const REAL_STORAGE = path.join(process.env.APPDATA ?? '', 'jtools')
+
+/**
+ * Vrai si le chemin tombe dans le dossier réel de l'application. Fonction pure
+ * et exportée pour être testable : c'est elle qui empêche la destruction des
+ * données de l'utilisateur, elle ne doit pas reposer sur la bonne foi.
+ */
+export function isInsideRealStorage(target, appData = process.env.APPDATA) {
+  if (!appData) return false
+  const real = path.resolve(appData, 'jtools').toLowerCase()
+  const candidate = path.resolve(target).toLowerCase()
+  return candidate === real || candidate.startsWith(real + path.sep)
+}
+
+/**
+ * Garde-fou : mieux vaut refuser de tester que détruire des données. Appelé
+ * avant tout lancement, et exporté pour que les scripts puissent l'invoquer
+ * avant leur propre `rmSync`.
+ */
+export function assertIsolated() {
+  if (isInsideRealStorage(STORAGE_DIR)) {
+    throw new Error(
+      `Refus de lancer : les tests viseraient le stockage réel (${STORAGE_DIR}).`
+    )
+  }
+}
 
 /**
  * `passphrase` déverrouille automatiquement au démarrage ; `manualUnlock` rend
@@ -27,7 +68,9 @@ export async function launchApp({
   passphrase = null,
   manualUnlock = false
 } = {}) {
+  assertIsolated()
   fs.mkdirSync(SHOTS, { recursive: true })
+  fs.mkdirSync(TEST_PROFILE, { recursive: true })
 
   // L'hôte VSCode exporte ELECTRON_RUN_AS_NODE=1 ; hérité, il ferait démarrer
   // Electron en simple runtime Node et `require('electron')` renverrait un
@@ -37,7 +80,7 @@ export async function launchApp({
 
   const child = spawn(
     path.join(APP_DIR, 'node_modules/electron/dist/electron.exe'),
-    [APP_DIR, `--remote-debugging-port=${port}`],
+    [APP_DIR, `--remote-debugging-port=${port}`, `--user-data-dir=${TEST_PROFILE}`],
     { cwd: APP_DIR, env, stdio: ['ignore', 'pipe', 'pipe'] }
   )
   if (!quiet) child.stderr.on('data', (d) => process.stderr.write(`[electron] ${d}`))

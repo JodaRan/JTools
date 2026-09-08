@@ -7,7 +7,7 @@
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { launchApp, STORAGE_DIR } from './app-driver.mjs'
+import { assertIsolated, launchApp, STORAGE_DIR } from './app-driver.mjs'
 
 const readJson = (name) => {
   const file = path.join(STORAGE_DIR, name)
@@ -36,8 +36,10 @@ const rowNames = (page) =>
   page.$$eval('[data-test-item]', (els) => els.map((e) => e.getAttribute('data-test-item')))
 
 // Départ propre : sans ça on testerait les restes d'un run précédent.
+// Ne jamais effacer ailleurs que dans le profil de test.
+assertIsolated()
 fs.rmSync(STORAGE_DIR, { recursive: true, force: true })
-console.log('stockage remis à zéro :', STORAGE_DIR)
+console.log('stockage de test remis à zéro :', STORAGE_DIR)
 
 // — Premier lancement : navigation + création —
 {
