@@ -6,6 +6,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NDropdown } from 'naive-ui'
 import type { Line } from '@shared/models'
+import { isMultiline } from '@/lib/paste'
 import IconGrip from '~icons/lucide/grip-vertical'
 import IconCopy from '~icons/lucide/copy'
 import IconCheck from '~icons/lucide/check'
@@ -32,6 +33,8 @@ const emit = defineEmits<{
   remove: []
   hide: []
   mask: [masked: boolean]
+  /** Collage multi-ligne : le parent découpe et crée les lignes. */
+  pasteLines: [payload: { text: string; before: string; after: string }]
   comment: [text: string]
 }>()
 
@@ -81,6 +84,23 @@ watch(() => props.line.content, () => void nextTick(autoGrow))
 function onInput(event: Event): void {
   emit('input', (event.target as HTMLTextAreaElement).value)
   autoGrow()
+}
+
+/**
+ * Un collage d'une seule ligne suit le chemin normal du navigateur. Dès qu'il
+ * en contient plusieurs, c'est au parent de le transformer en autant de lignes.
+ */
+function onPaste(event: ClipboardEvent): void {
+  const text = event.clipboardData?.getData('text/plain') ?? ''
+  if (!isMultiline(text)) return
+
+  event.preventDefault()
+  const el = event.target as HTMLTextAreaElement
+  emit('pasteLines', {
+    text,
+    before: el.value.slice(0, el.selectionStart),
+    after: el.value.slice(el.selectionEnd)
+  })
 }
 
 function onCopy(): void {
@@ -193,6 +213,7 @@ const vFocusOnMount = { mounted: (el: HTMLInputElement) => el.focus() }
         :class="obscured && 'jt-masked'"
         :data-test-masked="obscured ? 'true' : undefined"
         @input="onInput"
+        @paste="onPaste"
         @keydown.enter.exact.prevent="emit('split')"
         @keydown.up="onArrowUp"
         @keydown.down="onArrowDown"

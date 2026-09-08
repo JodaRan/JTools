@@ -266,6 +266,99 @@ export function createLine(sequenceId: string, content: string, at?: number): Co
   }
 }
 
+/** Commande qui crée plusieurs lignes d'un coup, en exposant leurs identifiants. */
+export interface MultiLineCommand extends Command {
+  entityIds: string[]
+}
+
+/**
+ * Insère un bloc de lignes en une seule opération.
+ *
+ * Le point important est l'annulation : coller cinquante lignes puis faire
+ * Ctrl+Z doit les retirer toutes, pas revenir en arrière cinquante fois.
+ */
+export function createLines(
+  sequenceId: string,
+  contents: string[],
+  at?: number
+): MultiLineCommand {
+  const data = useDataStore()
+  const stamp = now()
+  const start = at ?? data.linesOfSequence(sequenceId).length
+
+  const lines: Line[] = contents.map((content, index) => ({
+    id: newId(),
+    sequenceId,
+    content,
+    comment: '',
+    hidden: false,
+    masked: false,
+    order: start + index,
+    createdAt: stamp,
+    updatedAt: stamp
+  }))
+
+  return {
+    label: `Coller ${lines.length} ligne${lines.length > 1 ? 's' : ''}`,
+    action: 'create',
+    entityType: 'line',
+    entityId: lines[0].id,
+    entityIds: lines.map((line) => line.id),
+    sequenceId,
+    focus: focusForSequence(sequenceId, lines[0].id),
+    after: clone(lines),
+    do: () => lines.forEach((line, index) => data.insertLine(clone(line), start + index)),
+    // À rebours : retirer par la fin évite de renuméroter à chaque retrait.
+    undo: () => [...lines].reverse().forEach((line) => data.removeLine(line.id))
+  }
+}
+
+/**
+ * Colle un bloc au milieu d'une ligne existante, comme le ferait un éditeur de
+ * texte : ce qui précède le curseur reste sur place et reçoit le début du
+ * collage, ce qui suit part à la fin de la dernière ligne insérée.
+ */
+export function pasteIntoLine(
+  id: string,
+  before: string,
+  after: string,
+  parts: string[]
+): MultiLineCommand {
+  const data = useDataStore()
+  const line = data.line(id)!
+  const previous = line.content
+  const sequenceId = line.sequenceId
+  const index = data.linesOfSequence(sequenceId).findIndex((item) => item.id === id)
+
+  const head = before + parts[0]
+  const tail = parts.slice(1)
+  // Le reste de la ligne d'origine se raccroche au dernier morceau collé.
+  if (tail.length > 0) tail[tail.length - 1] += after
+  else return { ...updateLine(id, head + after), entityIds: [id] }
+
+  const inserted = createLines(sequenceId, tail, index + 1)
+
+  return {
+    label: `Coller ${parts.length} lignes`,
+    action: 'create',
+    entityType: 'line',
+    entityId: id,
+    entityIds: [id, ...inserted.entityIds],
+    sequenceId,
+    focus: focusForSequence(sequenceId, id),
+    before: previous,
+    after: clone(parts),
+    do: () => {
+      data.patchLine(id, { content: head })
+      inserted.do()
+    },
+    undo: () => {
+      inserted.undo()
+      data.patchLine(id, { content: previous })
+    }
+  }
+}
+
 export function updateLine(id: string, content: string): Command {
   const data = useDataStore()
   const previous = data.line(id)?.content ?? ''

@@ -13,7 +13,9 @@ import { useDataStore } from '@/stores/data'
 import { useUndoStore } from '@/stores/undo'
 import {
   createLine,
+  createLines,
   deleteLine,
+  pasteIntoLine,
   renameSequence,
   reorderLines,
   setLineComment,
@@ -22,6 +24,7 @@ import {
   updateLine
 } from '@/lib/commands'
 import { useSpotlight } from '@/composables/useSpotlight'
+import { isMultiline, pasteSummary, splitPastedText } from '@/lib/paste'
 import BackButton from '@/components/common/BackButton.vue'
 import LineRow from '@/components/sequence/LineRow.vue'
 import InsertZone from '@/components/sequence/InsertZone.vue'
@@ -155,6 +158,24 @@ function onMask(line: Line, masked: boolean): void {
 
 const onComment = (line: Line, text: string): void => undo.run(setLineComment(line.id, text))
 
+/**
+ * Collage multi-ligne au milieu d'une ligne. Le comportement est celui d'un
+ * éditeur de texte : la ligne se coupe au curseur et les morceaux collés
+ * s'intercalent — le tout en une seule action annulable.
+ */
+function onPasteLines(
+  line: Line,
+  payload: { text: string; before: string; after: string }
+): void {
+  const split = splitPastedText(payload.text)
+  if (split.lines.length === 0) return
+
+  const command = pasteIntoLine(line.id, payload.before, payload.after, split.lines)
+  undo.run(command)
+  message.success(pasteSummary(split))
+  void focusLine(command.entityIds.at(-1)!)
+}
+
 // —————————————————————————— Ligne fantôme ——————————————————————————
 
 /**
@@ -174,6 +195,31 @@ function commitGhost(): void {
 
 function onGhostEnter(): void {
   commitGhost()
+  void focusGhost()
+}
+
+/**
+ * Collage dans la fantôme — le cas courant : on copie un bloc depuis un fichier
+ * et on le dépose en bas de la séquence. Ce qui était déjà tapé dans la
+ * fantôme se raccroche à la première ligne collée.
+ */
+function onGhostPaste(event: ClipboardEvent): void {
+  const text = event.clipboardData?.getData('text/plain') ?? ''
+  if (!isMultiline(text)) return
+
+  event.preventDefault()
+  const el = event.target as HTMLTextAreaElement
+  const split = splitPastedText(el.value.slice(0, el.selectionStart) + text)
+  const trailing = el.value.slice(el.selectionEnd)
+  if (split.lines.length === 0) return
+
+  if (trailing) split.lines[split.lines.length - 1] += trailing
+
+  undo.run(createLines(props.sequenceId, split.lines))
+  message.success(pasteSummary(split))
+
+  ghostValue.value = ''
+  if (ghost.value) ghost.value.style.height = 'auto'
   void focusGhost()
 }
 
@@ -268,6 +314,7 @@ function onDragEnd(): void {
           @remove="onRemove(line, position)"
           @hide="onHide(line)"
           @mask="(masked) => onMask(line, masked)"
+          @paste-lines="(payload) => onPasteLines(line, payload)"
           @comment="(text) => onComment(line, text)"
         />
       </div>
@@ -290,6 +337,7 @@ function onDragEnd(): void {
         data-test="ghost-input"
         class="min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 font-mono text-[13px] leading-5 text-app-text outline-none placeholder:font-sans placeholder:text-app-muted"
         @input="growGhost"
+        @paste="onGhostPaste"
         @keydown.enter.exact.prevent="onGhostEnter"
         @keydown.backspace="onGhostBackspace"
         @blur="commitGhost"

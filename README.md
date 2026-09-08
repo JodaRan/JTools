@@ -64,6 +64,28 @@ Survoler l'espace entre deux lignes fait apparaître un `+` : le clic insère un
 ligne à cet endroit. La dernière ligne est toujours un champ vide prêt à
 recevoir la frappe suivante.
 
+### Coller un bloc, copier la séquence
+
+Coller un texte à plusieurs lignes — depuis un fichier, un script, une autre
+séquence — crée **une ligne par saut de ligne**, en une seule action : un
+`Ctrl+Z` retire tout le bloc.
+
+- Dans la **ligne fantôme**, le bloc s'ajoute à la suite.
+- **Au milieu d'une ligne**, le collage se comporte comme dans un éditeur de
+  texte : la ligne se coupe au curseur et les morceaux s'intercalent.
+- Un collage **sans saut de ligne** reste un collage ordinaire.
+
+Les fins de ligne Windows sont normalisées et les blancs de fin retirés.
+L'indentation de début est conservée, car elle est parfois signifiante. Les
+lignes vides du milieu sont gardées — elles font un séparateur commode entre
+deux étapes ; seuls les sauts de ligne **finaux** sont écartés, presque tout
+fichier en portant un.
+
+L'icône presse-papiers de l'en-tête copie **toute la séquence**, jointe par des
+sauts de ligne. C'est l'exact inverse du collage : l'aller-retour est fidèle.
+Elle copie les lignes masquées **en clair** — c'est le but — mais laisse de côté
+les lignes cachées.
+
 ### Cacher ou masquer une ligne
 
 Deux notions distinctes, toutes deux dans le menu `⋮` de la ligne :
