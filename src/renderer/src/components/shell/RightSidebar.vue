@@ -95,11 +95,23 @@ function copy(line: Line): void {
   message.success('Copié.')
 }
 
-const panels = [
+const ALL_PANELS = [
   { key: 'history', label: 'Historique' },
   { key: 'hidden', label: 'Cachées' },
   { key: 'masked', label: 'Masquées' }
 ] as const
+
+/**
+ * Cacher et masquer sont des notions de séquence : un tableau de tâches n'a
+ * ni l'un ni l'autre, et deux onglets vides seraient une fausse promesse.
+ */
+const panels = computed(() =>
+  route.params.toolId === 'tasks' ? ALL_PANELS.slice(0, 1) : ALL_PANELS
+)
+
+watch(panels, (list) => {
+  if (!list.some((panel) => panel.key === ui.sidebar.panel)) ui.setSidebar(true, 'history')
+})
 </script>
 
 <template>

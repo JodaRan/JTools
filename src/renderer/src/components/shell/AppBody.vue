@@ -20,7 +20,7 @@ import { useIdleLock } from '@/composables/useIdleLock'
 import { useUndoRedo } from '@/composables/useUndoRedo'
 import Breadcrumb from '@/components/shell/Breadcrumb.vue'
 import RightSidebar from '@/components/shell/RightSidebar.vue'
-import FinalInputView from '@/views/FinalInputView.vue'
+import ToolHost from '@/views/ToolHost.vue'
 import IconUndo from '~icons/lucide/undo-2'
 import IconRedo from '~icons/lucide/redo-2'
 import IconPanel from '~icons/lucide/panel-right'
@@ -143,7 +143,7 @@ function onDividerDown(event: PointerEvent): void {
             </div>
 
             <div class="min-h-0 flex-1 overflow-auto px-6 py-6">
-              <FinalInputView
+              <ToolHost
                 :key="split.sequenceId"
                 :tool-id="split.toolId"
                 :project-id="split.projectId"

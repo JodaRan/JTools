@@ -21,8 +21,10 @@ export function useSpotlight(): {
 
     // Laisse le temps à la vue cible de se monter avant de chercher la ligne.
     await new Promise((resolve) => window.setTimeout(resolve, 60))
+    // `data-test-line` pour une ligne de séquence, `data-spot` pour une carte :
+    // chaque vue finale déclare ce qu'elle sait mettre en évidence.
     document
-      .querySelector(`[data-test-line="${id}"]`)
+      .querySelector(`[data-test-line="${id}"], [data-spot="${id}"]`)
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 
     timer = window.setTimeout(() => {

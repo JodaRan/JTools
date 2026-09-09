@@ -1,12 +1,17 @@
 # JTools
 
-Boîte à outils personnelle sur le bureau. Le premier outil, **Séquences**, gère
-des listes de commandes à copier-coller (backup de BDD, mise à jour de code…),
-organisées par projet.
+Boîte à outils personnelle sur le bureau. Deux outils à ce jour, tous deux
+organisés par projet :
 
-Le but n'est pas de stocker des commandes — c'est de les saisir et de les copier
+- **Séquences** — listes de commandes à copier-coller (backup de BDD, mise à
+  jour de code…).
+- **Tâches** — tableaux kanban, avec colonnes, priorités et glisser-déposer.
+
+Le but n'est pas de stocker de la donnée — c'est de la saisir et de s'en servir
 sans jamais s'arrêter : édition en place, aucune modale, aucun bouton
-« enregistrer », onglets persistants et annulation globale.
+« enregistrer », onglets persistants et annulation globale. Les deux outils
+partagent toute la coquille : explorateur, onglets, vue côte à côte, journal,
+Ctrl+Z global et chiffrement.
 
 ## Démarrer
 
@@ -24,6 +29,7 @@ pnpm dev            # Electron + HMR
 | `pnpm test` | tests unitaires des stores (Vitest) |
 | `pnpm verify` | scénarios de bout en bout sur l'app buildée |
 | `pnpm icon` | régénère `build/icon.ico` |
+| `pnpm tasks:seed` | reprend `saves/` dans le stockage réel (`--dry` pour voir sans écrire) |
 | `pnpm dist` | installeur Windows dans `dist/` |
 
 `pnpm verify` pilote l'application réelle par CDP (voir `scripts/app-driver.mjs`)
@@ -32,9 +38,9 @@ et dépose ses captures dans `.shots/`. Il faut avoir construit l'app avant
 
 ## Prise en main
 
-- **Explorer** (pastille 📁 à gauche des onglets) : Outils › Projets › Séquences.
-  Le fil d'Ariane ramène à n'importe quel ancêtre.
-- **Ouvrir une séquence** crée son onglet. Un onglet ne se ferme qu'au clic sur
+- **Explorer** (pastille 📁 à gauche des onglets) : Outils › Projets › Séquences
+  ou Tableaux. Le fil d'Ariane ramène à n'importe quel ancêtre.
+- **Ouvrir une séquence ou un tableau** crée son onglet. Un onglet ne se ferme qu'au clic sur
   son ×, au clic milieu ou par `Ctrl+W` ; on le déplace au glisser.
 - **Deux séquences côte à côte** : clic droit sur un onglet › « Ouvrir à
   droite ». Le séparateur central se glisse à la souris, et le volet se ferme
@@ -107,6 +113,80 @@ qu'en mémoire.
 > Le masquage protège des regards par-dessus l'épaule et d'un partage d'écran.
 > Pour le disque, c'est le coffre qui s'en charge — voir ci-dessous.
 
+## Tâches
+
+Un projet contient des **tableaux** — un par sprint, par exemple. Un tableau
+s'ouvre dans son onglet, comme une séquence, et se met côte à côte avec
+n'importe quel autre.
+
+### Colonnes
+
+Les colonnes d'un tableau neuf sont *À faire*, *En cours*, *En révision* et
+*Terminé*. Le nom se change en cliquant dessus, l'ordre au glissé de la
+poignée, et « Ajouter une colonne » prolonge le tableau à droite. Supprimer une
+colonne emporte ses tâches — Ctrl+Z les ramène toutes ensemble.
+
+### Cartes
+
+Une carte porte son titre, son assigné et sa priorité en pastille colorée :
+rouge *Urgente*, ambre *Haute*, bleu *Moyenne*, gris *Basse*. S'y ajoutent, le
+cas échéant, la taille estimée et l'échéance — en rouge si elle est passée.
+
+Le `+` d'une colonne ouvre un champ qui **reste ouvert après Entrée** : on
+enchaîne dix tâches sans jamais reprendre la souris. Un clic sur une carte
+ouvre son panneau, à droite du tableau ; tout s'y modifie en place, et `Échap`
+le referme. Le clic droit sur une carte donne les gestes fréquents — changer la
+priorité, dupliquer, supprimer — sans l'ouvrir.
+
+Le panneau porte aussi ce que l'ancien outil ne connaissait pas : une **taille
+estimée** (XS à XL) et la **date du dernier changement de statut**, posée
+automatiquement au passage d'une colonne à l'autre. La date de création reste
+modifiable, et l'échéance vient à côté d'elle.
+
+### Ordre et glisser-déposer
+
+Dans une colonne, les cartes sont rangées **par priorité** : les urgentes en
+haut, les basses en bas. À l'intérieur d'une priorité, l'ordre est le vôtre.
+
+Le glisser-déposer respecte cette règle plutôt que de la contourner : une carte
+ne se dépose que dans un groupe **de sa propre priorité**, dans sa colonne ou
+dans une autre. Pendant le déplacement, les zones qui l'acceptent s'entourent
+de pointillés et les autres s'estompent. Changer de priorité est donc une
+décision explicite — par le panneau ou le clic droit —, jamais l'effet de bord
+d'une main qui glisse.
+
+Déposer une carte dans une autre colonne date son changement de statut. La
+recherche de l'en-tête filtre les cartes ; tant qu'elle est active, le
+glisser-déposer est suspendu — l'ordre affiché n'étant que partiel, le rang
+qu'on croirait fixer serait faux.
+
+### Reprendre les tableaux de l'ancien outil
+
+Les sauvegardes de l'ancien gestionnaire (`tasks`, `statuses`, `members`) se
+reprennent telles quelles, sans conversion préalable :
+
+- **Un dossier entier** : Outils › Tâches › « Reprendre d'anciennes
+  sauvegardes ». Chaque sous-dossier contenant un `data.json` devient un
+  projet ; ceux qui partagent une base — `Ephrata`, `Ephrata_sprint_2`,
+  `Ephrata_sprint_3` — se rangent sous un même projet, en sprints.
+- **Un tableau seul** : depuis la liste des tableaux d'un projet, « Importer un
+  tableau ».
+- **En ligne de commande** : `pnpm tasks:seed` fait la même chose sur `saves/`.
+  Coffre actif, il refuse d'écrire — il n'a pas la clé — et renvoie vers
+  l'interface, qui l'a.
+
+La reprise est **une seule action annulable** : six dossiers repris puis
+Ctrl+Z, et il n'en reste rien.
+
+Trois détails de la conversion valent d'être connus. Les statuts deviennent des
+colonnes, dans l'ordre déclaré, et un statut qui n'existait que sur une tâche
+obtient quand même la sienne — rien n'est perdu. Le champ `order` de l'ancien
+format se compte **au sein d'une priorité**, pas d'une colonne ; les rangs sont
+donc redonnés groupe par groupe, en conservant l'ordre affiché et en
+départageant les ex æquo par ancienneté. Enfin, l'ancien outil ne datait pas
+les changements de statut et n'estimait pas : ces deux champs restent vides
+plutôt que d'être inventés.
+
 ## Chiffrement
 
 Le coffre est **facultatif** : JTools le propose au premier lancement, et on
@@ -178,7 +258,7 @@ Tout est en JSON dans `%APPDATA%/jtools/JTools/` :
 
 | Fichier | Contenu |
 |---|---|
-| `data.json` | projets, séquences, lignes |
+| `data.json` | projets, séquences, lignes, tableaux, colonnes, tâches |
 | `history.json` | journal des modifications |
 | `ui.json` | fenêtre, thème, onglets ouverts, panneau latéral |
 
@@ -188,9 +268,15 @@ presse-papiers, de l'exporter dans un fichier ou d'en réimporter une.
 ## Ajouter un outil
 
 Un outil est du code, pas de la donnée : ajouter une entrée dans
-`src/renderer/src/tools/registry.ts` et la vue finale correspondante suffit. La
-structure Projets › Séquences et toute la coquille (onglets, annulation,
-persistance) sont réutilisées telles quelles.
+`src/renderer/src/tools/registry.ts` et la vue finale correspondante suffit.
+L'entrée y déclare aussi les mots de l'outil — « séquence » ou « tableau » — et
+sa vue finale, que `ToolHost.vue` monte aussi bien dans l'onglet principal que
+dans le volet droit. La structure Projets › Séquences et toute la coquille
+(onglets, annulation, persistance) sont réutilisées telles quelles.
+
+Un tableau de tâches **est** une séquence : il porte son identifiant, et hérite
+ainsi de l'onglet, du fil d'Ariane et de la vue côte à côte sans une ligne de
+code en plus.
 
 ## Architecture
 

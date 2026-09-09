@@ -9,6 +9,8 @@ export interface CommandFocus {
   projectId?: string
   sequenceId?: string
   lineId?: string
+  /** Carte à mettre en évidence dans un tableau de tâches. */
+  taskId?: string
 }
 
 export interface Command {
@@ -126,6 +128,9 @@ export function deleteProject(id: string): Command {
     focus: { toolId: project.toolId, projectId: id },
     before: { project, ...descendants },
     do: () => {
+      for (const task of descendants.tasks) data.removeTask(task.id)
+      for (const column of descendants.columns) data.removeColumn(column.id)
+      for (const board of descendants.boards) data.removeBoard(board.id)
       for (const line of descendants.lines) data.removeLine(line.id)
       for (const sequence of descendants.sequences) data.removeSequence(sequence.id)
       data.removeProject(id)
@@ -134,6 +139,9 @@ export function deleteProject(id: string): Command {
       data.insertProject(clone(project), index)
       for (const sequence of descendants.sequences) data.insertSequence(clone(sequence))
       for (const line of descendants.lines) data.insertLine(clone(line))
+      for (const board of descendants.boards) data.insertBoard(clone(board))
+      for (const column of descendants.columns) data.insertColumn(clone(column))
+      for (const task of descendants.tasks) data.insertTask(clone(task))
     }
   }
 }
@@ -186,11 +194,11 @@ export function createSequence(projectId: string, name: string): Command {
   }
 }
 
-export function renameSequence(id: string, name: string): Command {
+export function renameSequence(id: string, name: string, label = 'séquence'): Command {
   const data = useDataStore()
   const previous = data.sequence(id)?.name ?? ''
   return {
-    label: `Renommer la séquence en « ${short(name)} »`,
+    label: `Renommer le ${label} en « ${short(name)} »`,
     action: 'update',
     entityType: 'sequence',
     entityId: id,
@@ -202,27 +210,40 @@ export function renameSequence(id: string, name: string): Command {
   }
 }
 
-export function deleteSequence(id: string): Command {
+/**
+ * Supprime une séquence — c'est-à-dire aussi bien une liste de commandes qu'un
+ * tableau de tâches : les deux partagent l'entité, et donc l'onglet, le fil
+ * d'Ariane et cette suppression. Le libellé suit l'outil pour rester juste.
+ */
+export function deleteSequence(id: string, label = 'séquence'): Command {
   const data = useDataStore()
   const sequence = clone(data.sequence(id)!)
   const lines = clone(data.linesOfSequence(id))
+  const board = data.board(id) ? clone(data.board(id)!) : null
+  const { columns, tasks } = clone(data.descendantsOfBoard(id))
   const index = data.sequencesOfProject(sequence.projectId).findIndex((s) => s.id === id)
 
   return {
-    label: `Supprimer la séquence « ${short(sequence.name)} »`,
+    label: `Supprimer le ${label} « ${short(sequence.name)} »`,
     action: 'delete',
     entityType: 'sequence',
     entityId: id,
     sequenceId: id,
     focus: focusForSequence(id),
-    before: { sequence, lines },
+    before: { sequence, lines, board, columns, tasks },
     do: () => {
       for (const line of lines) data.removeLine(line.id)
+      for (const task of tasks) data.removeTask(task.id)
+      for (const column of columns) data.removeColumn(column.id)
+      if (board) data.removeBoard(board.id)
       data.removeSequence(id)
     },
     undo: () => {
       data.insertSequence(clone(sequence), index)
       for (const line of lines) data.insertLine(clone(line))
+      if (board) data.insertBoard(clone(board))
+      for (const column of columns) data.insertColumn(clone(column))
+      for (const task of tasks) data.insertTask(clone(task))
     }
   }
 }

@@ -26,7 +26,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/tools/:toolId/p/:projectId/s/:sequenceId',
     name: 'final',
-    component: () => import('@/views/FinalInputView.vue'),
+    component: () => import('@/views/ToolHost.vue'),
     props: true
   },
   { path: '/:pathMatch(.*)*', redirect: { name: 'tools' } }

@@ -1,11 +1,18 @@
 import {
+  PRIORITIES,
+  ESTIMATES,
   SCHEMA_VERSION,
+  UNASSIGNED,
   defaultData,
   defaultHistory,
   defaultUi,
+  type Board,
   type DataFile,
+  type Estimate,
   type HistoryFile,
   type Line,
+  type Priority,
+  type Task,
   type UiFile
 } from '@shared/models'
 
@@ -37,13 +44,55 @@ const normalizeLine = (input: unknown): Line => {
   }
 }
 
+
+/**
+ * v3 → v4 : l'outil « Tâches ». Un fichier d'avant n'a ni tableaux, ni
+ * colonnes, ni tâches — `asArray` les rend vides, et rien d'autre ne bouge.
+ *
+ * Une tâche venue d'une sauvegarde bricolée à la main peut, elle, porter
+ * n'importe quoi : priorité inconnue, assigné absent, estimation fantaisiste.
+ * On borne chaque champ ici plutôt que de laisser l'interface se débrouiller.
+ */
+const normalizeTask = (input: unknown): Task => {
+  const task = (isRecord(input) ? input : {}) as Partial<Task>
+  const priority = task.priority as Priority
+  const estimate = task.estimate as Estimate
+  return {
+    ...(task as Task),
+    title: typeof task.title === 'string' ? task.title : '',
+    description: typeof task.description === 'string' ? task.description : '',
+    assignee: typeof task.assignee === 'string' && task.assignee ? task.assignee : UNASSIGNED,
+    priority: PRIORITIES.includes(priority) ? priority : 'medium',
+    estimate: estimate === '' || ESTIMATES.includes(estimate as never) ? estimate : '',
+    date: typeof task.date === 'string' ? task.date : '',
+    dueDate: typeof task.dueDate === 'string' ? task.dueDate : '',
+    statusChangedAt: typeof task.statusChangedAt === 'string' ? task.statusChangedAt : '',
+    order: typeof task.order === 'number' ? task.order : 0
+  }
+}
+
+const normalizeBoard = (input: unknown): Board => {
+  const board = (isRecord(input) ? input : {}) as Partial<Board>
+  const assignees = Array.isArray(board.assignees)
+    ? board.assignees.filter((name): name is string => typeof name === 'string')
+    : []
+  // « Non assigné » ouvre toujours la liste : c'est la valeur par défaut.
+  return {
+    ...(board as Board),
+    assignees: [UNASSIGNED, ...assignees.filter((name) => name !== UNASSIGNED)]
+  }
+}
+
 export function migrateData(input: unknown): DataFile {
   if (!isRecord(input)) return defaultData()
   return {
     version: SCHEMA_VERSION,
     projects: asArray(input.projects),
     sequences: asArray(input.sequences),
-    lines: asArray<unknown>(input.lines).map(normalizeLine)
+    lines: asArray<unknown>(input.lines).map(normalizeLine),
+    boards: asArray<unknown>(input.boards).map(normalizeBoard),
+    columns: asArray(input.columns),
+    tasks: asArray<unknown>(input.tasks).map(normalizeTask)
   }
 }
 

@@ -182,7 +182,7 @@ const ui = JSON.parse(fs.readFileSync(path.join(STORAGE_DIR, 'ui.json'), 'utf-8'
 check('volet droit enregistré', typeof ui.split.tabId === 'string', true)
 
 const data = JSON.parse(fs.readFileSync(path.join(STORAGE_DIR, 'data.json'), 'utf-8'))
-check('schéma migré en v3', data.version, 3)
+check('schéma migré en v4', data.version, 4)
 check('le masquage est persisté', data.lines.filter((l) => l.masked).length, 1)
 
 {

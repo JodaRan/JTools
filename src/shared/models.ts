@@ -4,7 +4,7 @@
  * et d'une étape dans `migrate.ts`.
  */
 
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 export interface Project {
   id: string
@@ -44,6 +44,61 @@ export interface Line {
   updatedAt: string
 }
 
+/**
+ * Tableau de tâches. C'est le pendant d'une séquence pour l'outil « Tâches » :
+ * un tableau EST une séquence (même identifiant, mêmes onglets, même fil
+ * d'Ariane) ; cet enregistrement ne porte que ce qui lui est propre.
+ */
+export interface Board {
+  /** Identique à l'identifiant de la séquence qui le porte. */
+  id: string
+  /** Acteurs proposés pour l'assignation. « Non assigné » ouvre toujours la liste. */
+  assignees: string[]
+}
+
+/** Colonne d'un tableau — le « statut » de l'ancien outil, devenu une entité. */
+export interface Column {
+  id: string
+  boardId: string
+  name: string
+  order: number
+  createdAt: string
+  updatedAt: string
+}
+
+export const PRIORITIES = ['urgent', 'high', 'medium', 'low'] as const
+export type Priority = (typeof PRIORITIES)[number]
+
+/** Taille relative plutôt qu'une durée en heures : une estimation reste une estimation. */
+export const ESTIMATES = ['xs', 's', 'm', 'l', 'xl'] as const
+export type Estimate = (typeof ESTIMATES)[number] | ''
+
+export const UNASSIGNED = 'Non assigné'
+
+export interface Task {
+  id: string
+  boardId: string
+  columnId: string
+  title: string
+  description: string
+  assignee: string
+  priority: Priority
+  estimate: Estimate
+  /** Date de création reprise de l'ancien outil, `YYYY-MM-DD`, modifiable. */
+  date: string
+  /** Échéance, `YYYY-MM-DD`. Vide tant qu'on n'en a pas fixé. */
+  dueDate: string
+  /** Dernier passage d'une colonne à une autre. Vide si jamais déplacée. */
+  statusChangedAt: string
+  /**
+   * Rang au sein du couple (colonne, priorité) : le glisser-déposer ne
+   * réordonne qu'à priorité égale, il ne la change jamais.
+   */
+  order: number
+  createdAt: string
+  updatedAt: string
+}
+
 export type HistoryAction =
   | 'create'
   | 'update'
@@ -55,8 +110,9 @@ export type HistoryAction =
   | 'unmask'
   | 'comment'
   | 'import'
+  | 'move'
 
-export type EntityType = 'project' | 'sequence' | 'line'
+export type EntityType = 'project' | 'sequence' | 'line' | 'board' | 'column' | 'task'
 
 /** Journal persistant, distinct de la pile d'annulation (en mémoire). */
 export interface HistoryEntry {
@@ -126,6 +182,10 @@ export interface DataFile {
   projects: Project[]
   sequences: Sequence[]
   lines: Line[]
+  /** v3 → v4 : l'outil « Tâches ». Vides pour un fichier d'avant. */
+  boards: Board[]
+  columns: Column[]
+  tasks: Task[]
 }
 
 export interface HistoryFile {
@@ -179,8 +239,19 @@ export const defaultData = (): DataFile => ({
   version: SCHEMA_VERSION,
   projects: [],
   sequences: [],
-  lines: []
+  lines: [],
+  boards: [],
+  columns: [],
+  tasks: []
 })
+
+/** Colonnes d'un tableau neuf, dans l'ordre où le travail avance. */
+export const DEFAULT_COLUMNS = ['À faire', 'En cours', 'En révision', 'Terminé']
+
+const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
+
+/** Ordre d'affichage : Urgente d'abord, Basse en dernier. */
+export const priorityRank = (priority: Priority): number => PRIORITY_RANK[priority] ?? 2
 
 export const defaultHistory = (): HistoryFile => ({
   version: SCHEMA_VERSION,

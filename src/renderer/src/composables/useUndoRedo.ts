@@ -22,6 +22,20 @@ export function useUndoRedo(): { performUndo: () => Promise<void>; performRedo: 
 
     // On ne navigue que vers ce qui existe encore après l'opération.
 
+    // Une tâche se juge dans son tableau, comme une ligne dans sa séquence.
+    if (focus.taskId && focus.sequenceId && data.sequence(focus.sequenceId)) {
+      await router.push({
+        name: 'final',
+        params: {
+          toolId: focus.toolId,
+          projectId: focus.projectId,
+          sequenceId: focus.sequenceId
+        }
+      })
+      if (data.task(focus.taskId)) await spot(focus.taskId)
+      return
+    }
+
     // Une ligne ne se juge que dans sa vue finale : on y entre, qu'elle vienne
     // de réapparaître ou de repartir. Le halo, lui, suppose qu'elle existe.
     if (focus.lineId && focus.sequenceId && data.sequence(focus.sequenceId)) {

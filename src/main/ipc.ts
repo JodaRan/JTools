@@ -1,5 +1,6 @@
 import { app, clipboard, dialog, ipcMain, nativeTheme, shell, type BrowserWindow } from 'electron'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, join } from 'node:path'
 import {
   StorageError,
   readAll,
@@ -190,6 +191,55 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     })
     if (canceled || filePaths.length === 0) return null
     return JSON.parse(await readFile(filePaths[0], 'utf-8'))
+  })
+
+
+  /**
+   * Reprise des sauvegardes de l'ancien gestionnaire de tâches.
+   *
+   * Un dossier de sauvegarde, c'est un répertoire nommé d'après le projet qui
+   * contient un `data.json` — d'où le nom rendu ici : c'est lui qui nommera le
+   * tableau, et le fichier seul ne le porte pas. En mode dossier on accepte
+   * aussi bien le dossier d'un tableau que celui qui en contient plusieurs.
+   */
+  const legacyEntry = async (path: string): Promise<{ name: string; data: unknown } | null> => {
+    try {
+      const data = JSON.parse(await readFile(path, 'utf-8'))
+      const stem = basename(path, extname(path))
+      return { name: stem === 'data' ? basename(dirname(path)) : stem, data }
+    } catch {
+      return null
+    }
+  }
+
+  ipcMain.handle('legacy:pick', async (_e, mode: 'file' | 'folder') => {
+    const win = getWindow()
+    const { canceled, filePaths } = await dialog.showOpenDialog(win!, {
+      title:
+        mode === 'folder'
+          ? 'Choisir un dossier de sauvegardes'
+          : 'Choisir une sauvegarde de tableau',
+      properties: [mode === 'folder' ? 'openDirectory' : 'openFile'],
+      filters: mode === 'file' ? [{ name: 'JSON', extensions: ['json'] }] : undefined
+    })
+    if (canceled || filePaths.length === 0) return null
+
+    if (mode === 'file') {
+      const entry = await legacyEntry(filePaths[0])
+      return entry ? [entry] : []
+    }
+
+    const root = filePaths[0]
+    const own = await legacyEntry(join(root, 'data.json'))
+    if (own) return [own]
+
+    const found: { name: string; data: unknown }[] = []
+    for (const item of await readdir(root, { withFileTypes: true })) {
+      if (!item.isDirectory()) continue
+      const entry = await legacyEntry(join(root, item.name, 'data.json'))
+      if (entry) found.push({ ...entry, name: item.name })
+    }
+    return found
   })
 
   ipcMain.handle('app:get-version', () => app.getVersion())

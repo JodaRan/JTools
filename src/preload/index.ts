@@ -103,6 +103,16 @@ const api = {
     saveText: (defaultName: string, contents: string): Promise<string | null> =>
       ipcRenderer.invoke('file:save-text', defaultName, contents)
   },
+  legacy: {
+    /**
+     * Ouvre des sauvegardes de l'ancien gestionnaire de tâches. `folder`
+     * ramène tous les tableaux d'une arborescence en une fois ; `file` n'en
+     * prend qu'un. `name` est le dossier d'origine — c'est ce qui nomme le
+     * projet et le tableau.
+     */
+    pick: (mode: 'file' | 'folder'): Promise<{ name: string; data: unknown }[] | null> =>
+      ipcRenderer.invoke('legacy:pick', mode)
+  },
   app: {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:get-version')
   }

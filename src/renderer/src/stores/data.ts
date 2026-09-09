@@ -5,10 +5,15 @@ import { now } from '@/lib/id'
 import {
   SCHEMA_VERSION,
   defaultData,
+  priorityRank,
+  type Board,
+  type Column,
   type DataFile,
   type Line,
+  type Priority,
   type Project,
-  type Sequence
+  type Sequence,
+  type Task
 } from '@shared/models'
 
 interface Ordered {
@@ -34,6 +39,9 @@ export const useDataStore = defineStore('data', () => {
   const projects = ref<Project[]>([])
   const sequences = ref<Sequence[]>([])
   const lines = ref<Line[]>([])
+  const boards = ref<Board[]>([])
+  const columns = ref<Column[]>([])
+  const tasks = ref<Task[]>([])
 
   // — Lectures —
   const projectsOfTool = (toolId: string): Project[] =>
@@ -58,10 +66,44 @@ export const useDataStore = defineStore('data', () => {
   const sequence = (id: string): Sequence | undefined => sequences.value.find((s) => s.id === id)
   const line = (id: string): Line | undefined => lines.value.find((l) => l.id === id)
 
+  // — Lectures « Tâches » —
+  const board = (id: string): Board | undefined => boards.value.find((b) => b.id === id)
+  const column = (id: string): Column | undefined => columns.value.find((c) => c.id === id)
+  const task = (id: string): Task | undefined => tasks.value.find((t) => t.id === id)
+
+  const columnsOfBoard = (boardId: string): Column[] =>
+    byOrder(columns.value.filter((c) => c.boardId === boardId))
+
+  const tasksOfBoard = (boardId: string): Task[] =>
+    tasks.value.filter((t) => t.boardId === boardId)
+
+  /**
+   * Les tâches d'une colonne, dans l'ordre où elles s'affichent : priorité
+   * d'abord, puis rang au sein de la priorité. C'est le tri de l'ancien outil,
+   * et c'est lui qui justifie qu'on ne réordonne qu'à priorité égale.
+   */
+  const tasksOfColumn = (columnId: string): Task[] =>
+    tasks.value
+      .filter((t) => t.columnId === columnId)
+      .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.order - b.order)
+
+  /** Le groupe (colonne, priorité) : l'unité que le glisser-déposer manipule. */
+  const tasksOfGroup = (columnId: string, priority: Priority): Task[] =>
+    byOrder(tasks.value.filter((t) => t.columnId === columnId && t.priority === priority))
+
+  /** Tout ce qui disparaît avec un tableau, et doit revenir avec lui. */
+  function descendantsOfBoard(boardId: string): { columns: Column[]; tasks: Task[] } {
+    return {
+      columns: columns.value.filter((c) => c.boardId === boardId),
+      tasks: tasks.value.filter((t) => t.boardId === boardId)
+    }
+  }
+
   const counts = computed(() => ({
     projects: projects.value.length,
     sequences: sequences.value.length,
-    lines: lines.value.length
+    lines: lines.value.length,
+    tasks: tasks.value.length
   }))
 
   // — Écritures bas niveau —
@@ -115,10 +157,122 @@ export const useDataStore = defineStore('data', () => {
   }
 
   /** Descendants d'un projet, à retirer et à restaurer avec lui. */
-  function descendantsOfProject(projectId: string): { sequences: Sequence[]; lines: Line[] } {
+  function descendantsOfProject(projectId: string): {
+    sequences: Sequence[]
+    lines: Line[]
+    boards: Board[]
+    columns: Column[]
+    tasks: Task[]
+  } {
     const seqs = sequences.value.filter((s) => s.projectId === projectId)
     const ids = new Set(seqs.map((s) => s.id))
-    return { sequences: seqs, lines: lines.value.filter((l) => ids.has(l.sequenceId)) }
+    return {
+      sequences: seqs,
+      lines: lines.value.filter((l) => ids.has(l.sequenceId)),
+      // Un tableau porte l'identifiant de sa séquence : les deux partent ensemble.
+      boards: boards.value.filter((b) => ids.has(b.id)),
+      columns: columns.value.filter((c) => ids.has(c.boardId)),
+      tasks: tasks.value.filter((t) => ids.has(t.boardId))
+    }
+  }
+
+  function insertBoard(item: Board): void {
+    boards.value = [...boards.value.filter((b) => b.id !== item.id), item]
+    touch()
+  }
+
+  function removeBoard(id: string): void {
+    boards.value = boards.value.filter((b) => b.id !== id)
+    touch()
+  }
+
+  function patchBoard(id: string, patch: Partial<Board>): void {
+    const target = board(id)
+    if (!target) return
+    Object.assign(target, patch)
+    touch()
+  }
+
+  function insertColumn(item: Column, at?: number): void {
+    columns.value.push(item)
+    const siblings = columnsOfBoard(item.boardId).filter((c) => c.id !== item.id)
+    siblings.splice(at ?? siblings.length, 0, item)
+    renumber(siblings)
+    touch()
+  }
+
+  function removeColumn(id: string): void {
+    const target = column(id)
+    if (!target) return
+    columns.value = columns.value.filter((c) => c.id !== id)
+    renumber(columnsOfBoard(target.boardId))
+    touch()
+  }
+
+  function patchColumn(id: string, patch: Partial<Column>): void {
+    const target = column(id)
+    if (!target) return
+    Object.assign(target, patch, { updatedAt: now() })
+    touch()
+  }
+
+  /** `at` est un rang dans le groupe (colonne, priorité), pas dans la colonne. */
+  function insertTask(item: Task, at?: number): void {
+    tasks.value.push(item)
+    const siblings = tasksOfGroup(item.columnId, item.priority).filter((t) => t.id !== item.id)
+    siblings.splice(at ?? siblings.length, 0, item)
+    renumber(siblings)
+    touch()
+  }
+
+  /** Ajout en bloc de tâches dont les rangs sont déjà denses (reprise, import). */
+  function appendTasks(items: Task[]): void {
+    tasks.value.push(...items)
+    touch()
+  }
+
+  function removeTask(id: string): void {
+    const target = task(id)
+    if (!target) return
+    const { columnId, priority } = target
+    tasks.value = tasks.value.filter((t) => t.id !== id)
+    renumber(tasksOfGroup(columnId, priority))
+    touch()
+  }
+
+  function patchTask(id: string, patch: Partial<Task>): void {
+    const target = task(id)
+    if (!target) return
+    const from = { columnId: target.columnId, priority: target.priority }
+    Object.assign(target, patch, { updatedAt: now() })
+    // Changer de colonne ou de priorité, c'est changer de groupe : les deux
+    // groupes se renumérotent, sans quoi les rangs se marcheraient dessus.
+    if (patch.columnId !== undefined || patch.priority !== undefined) {
+      renumber(tasksOfGroup(from.columnId, from.priority))
+      renumber(tasksOfGroup(target.columnId, target.priority))
+    }
+    touch()
+  }
+
+  function reorderColumns(boardId: string, orderedIds: string[]): void {
+    const index = new Map(orderedIds.map((id, i) => [id, i]))
+    for (const item of columns.value) {
+      if (item.boardId !== boardId) continue
+      const rank = index.get(item.id)
+      if (rank !== undefined) item.order = rank
+    }
+    touch()
+  }
+
+  /** Applique un ordre explicite à un groupe (colonne, priorité). */
+  function reorderTasks(columnId: string, priority: Priority, orderedIds: string[]): void {
+    const index = new Map(orderedIds.map((id, i) => [id, i]))
+    for (const item of tasks.value) {
+      if (item.columnId !== columnId || item.priority !== priority) continue
+      const rank = index.get(item.id)
+      if (rank !== undefined) item.order = rank
+    }
+    touch()
   }
 
   function patchProject(id: string, patch: Partial<Project>): void {
@@ -179,7 +333,10 @@ export const useDataStore = defineStore('data', () => {
       version: SCHEMA_VERSION,
       projects: projects.value,
       sequences: sequences.value,
-      lines: lines.value
+      lines: lines.value,
+      boards: boards.value,
+      columns: columns.value,
+      tasks: tasks.value
     }
   }
 
@@ -192,6 +349,9 @@ export const useDataStore = defineStore('data', () => {
     projects.value = source.projects ?? []
     sequences.value = source.sequences ?? []
     lines.value = source.lines ?? []
+    boards.value = source.boards ?? []
+    columns.value = source.columns ?? []
+    tasks.value = source.tasks ?? []
   }
 
   registerSource('data', serialize)
@@ -200,6 +360,9 @@ export const useDataStore = defineStore('data', () => {
     projects,
     sequences,
     lines,
+    boards,
+    columns,
+    tasks,
     counts,
     projectsOfTool,
     sequencesOfProject,
@@ -210,7 +373,15 @@ export const useDataStore = defineStore('data', () => {
     project,
     sequence,
     line,
+    board,
+    column,
+    task,
+    columnsOfBoard,
+    tasksOfBoard,
+    tasksOfColumn,
+    tasksOfGroup,
     descendantsOfProject,
+    descendantsOfBoard,
     insertProject,
     insertSequence,
     insertLine,
@@ -220,6 +391,18 @@ export const useDataStore = defineStore('data', () => {
     patchProject,
     patchSequence,
     patchLine,
+    insertBoard,
+    removeBoard,
+    patchBoard,
+    insertColumn,
+    removeColumn,
+    patchColumn,
+    insertTask,
+    appendTasks,
+    removeTask,
+    patchTask,
+    reorderColumns,
+    reorderTasks,
     reorderLines,
     reorderSequences,
     reorderProjects,
