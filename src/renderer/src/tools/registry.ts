@@ -1,6 +1,7 @@
 import { defineAsyncComponent, type Component } from 'vue'
 import IconTerminal from '~icons/lucide/terminal'
 import IconKanban from '~icons/lucide/square-kanban'
+import IconBrain from '~icons/lucide/brain'
 
 /**
  * Catalogue des outils. Ce n'est pas de la donnée : un outil est du code, et
@@ -20,8 +21,16 @@ export interface ToolDefinition {
   sequenceCounted: string
   /** Ce qu'on compte dans une séquence : « 12 ligne(s) », « 40 tâche(s) ». */
   itemCounted: string
+  /** Invite du champ de création, dans la liste des projets. */
+  projectPlaceholder: string
   /** Invite du champ de création, dans la liste des séquences. */
   createPlaceholder: string
+  /**
+   * L'outil range-t-il son contenu en lignes de texte ? C'est ce qui décide de
+   * la recherche de mots (Ctrl+F) : un tableau et une série d'exercices ont
+   * leur propre façon de chercher, et une seconde recherche mentirait.
+   */
+  searchesLines: boolean
   view: Component
 }
 
@@ -35,7 +44,9 @@ export const tools: ToolDefinition[] = [
     sequenceLabel: 'séquence',
     sequenceCounted: 'séquence(s)',
     itemCounted: 'ligne(s)',
+    projectPlaceholder: 'Nouveau projet — tapez un nom puis Entrée',
     createPlaceholder: 'Nouvelle séquence — tapez un nom puis Entrée',
+    searchesLines: true,
     view: defineAsyncComponent(() => import('@/views/FinalInputView.vue'))
   },
   {
@@ -47,8 +58,24 @@ export const tools: ToolDefinition[] = [
     sequenceLabel: 'tableau',
     sequenceCounted: 'tableau(x)',
     itemCounted: 'tâche(s)',
+    projectPlaceholder: 'Nouveau projet — tapez un nom puis Entrée',
     createPlaceholder: 'Nouveau tableau — tapez un nom puis Entrée',
+    searchesLines: false,
     view: defineAsyncComponent(() => import('@/views/BoardView.vue'))
+  },
+  {
+    id: 'drills',
+    name: 'Exercices',
+    description: 'Entraînement mental : séries de questions importées en CSV, corrigées et notées.',
+    icon: IconBrain,
+    projectLabel: 'type',
+    sequenceLabel: 'partie',
+    sequenceCounted: 'partie(s)',
+    itemCounted: 'question(s)',
+    projectPlaceholder: "Nouveau type d'exercice — tapez un nom puis Entrée",
+    createPlaceholder: 'Nouvelle partie — tapez un nom puis Entrée',
+    searchesLines: false,
+    view: defineAsyncComponent(() => import('@/views/DrillView.vue'))
   }
 ]
 

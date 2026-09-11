@@ -1,7 +1,10 @@
 <script setup lang="ts">
 /**
- * Panneau latéral droit : l'historique des modifications et les lignes cachées.
- * Il est pensé pour accueillir d'autres panneaux sans changer de structure.
+ * Panneau latéral droit : l'historique des modifications, les lignes cachées,
+ * et ce que les autres outils ont à y poser — le guide de prompt, la leçon et
+ * les séries archivées de l'outil « Exercices ». Chaque outil déclare les
+ * panneaux qui ont un sens chez lui : un onglet vide serait une promesse en
+ * l'air.
  */
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -12,7 +15,10 @@ import { useHistoryStore } from '@/stores/history'
 import { useUndoStore } from '@/stores/undo'
 import { useSpotlight } from '@/composables/useSpotlight'
 import { MASK, createLine, setLineHidden, setLineMasked } from '@/lib/commands'
-import type { HistoryEntry, Line } from '@shared/models'
+import GuidePanel from '@/components/drill/GuidePanel.vue'
+import LessonPanel from '@/components/drill/LessonPanel.vue'
+import RunsPanel from '@/components/drill/RunsPanel.vue'
+import type { HistoryEntry, Line, SidebarPanel } from '@shared/models'
 import IconClose from '~icons/lucide/x'
 import IconEye from '~icons/lucide/eye'
 import IconCopy from '~icons/lucide/copy'
@@ -28,6 +34,8 @@ const message = useMessage()
 const { spot } = useSpotlight()
 
 const sequenceId = computed(() => (route.params.sequenceId as string | undefined) ?? null)
+const projectId = computed(() => (route.params.projectId as string | undefined) ?? null)
+const toolId = computed(() => (route.params.toolId as string | undefined) ?? null)
 
 const hidden = computed<Line[]>(() =>
   sequenceId.value ? data.hiddenLines(sequenceId.value) : []
@@ -95,19 +103,31 @@ function copy(line: Line): void {
   message.success('Copié.')
 }
 
-const ALL_PANELS = [
-  { key: 'history', label: 'Historique' },
-  { key: 'hidden', label: 'Cachées' },
-  { key: 'masked', label: 'Masquées' }
-] as const
+const PANEL_LABELS: Record<SidebarPanel, string> = {
+  history: 'Historique',
+  hidden: 'Cachées',
+  masked: 'Masquées',
+  guide: 'Guide',
+  lesson: 'Leçon',
+  runs: 'Séries'
+}
 
 /**
- * Cacher et masquer sont des notions de séquence : un tableau de tâches n'a
- * ni l'un ni l'autre, et deux onglets vides seraient une fausse promesse.
+ * Cacher et masquer sont des notions de séquence ; la leçon et les séries,
+ * des notions de partie d'exercices. Chaque outil n'affiche donc que ce qu'il
+ * sait remplir, et l'historique reste partout.
  */
-const panels = computed(() =>
-  route.params.toolId === 'tasks' ? ALL_PANELS.slice(0, 1) : ALL_PANELS
-)
+const panels = computed<{ key: SidebarPanel; label: string }[]>(() => {
+  const keys: SidebarPanel[] =
+    toolId.value === 'tasks'
+      ? ['history']
+      : toolId.value === 'drills'
+        ? sequenceId.value
+          ? ['history', 'guide', 'lesson', 'runs']
+          : ['history', 'guide']
+        : ['history', 'hidden', 'masked']
+  return keys.map((key) => ({ key, label: PANEL_LABELS[key] }))
+})
 
 watch(panels, (list) => {
   if (!list.some((panel) => panel.key === ui.sidebar.panel)) ui.setSidebar(true, 'history')
@@ -218,7 +238,10 @@ watch(panels, (list) => {
 
     <!-- Lignes masquées : l'inventaire des secrets de la séquence. On peut les
          copier sans jamais les afficher. -->
-    <div v-else class="min-h-0 flex-1 overflow-auto p-2">
+    <div
+      v-else-if="ui.sidebar.panel === 'masked'"
+      class="min-h-0 flex-1 overflow-auto p-2"
+    >
       <p v-if="!sequenceId" class="p-2 text-[12px] text-app-muted">
         Ouvrez une séquence pour voir ses lignes masquées.
       </p>
@@ -261,5 +284,11 @@ watch(panels, (list) => {
         </li>
       </ul>
     </div>
+
+    <!-- Outil « Exercices » : le guide de prompt du type, la leçon d'une
+         question, et les séries déjà archivées. -->
+    <GuidePanel v-else-if="ui.sidebar.panel === 'guide'" :project-id="projectId" />
+    <LessonPanel v-else-if="ui.sidebar.panel === 'lesson'" />
+    <RunsPanel v-else :set-id="sequenceId" />
   </aside>
 </template>

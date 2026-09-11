@@ -131,6 +131,10 @@ export function deleteProject(id: string): Command {
       for (const task of descendants.tasks) data.removeTask(task.id)
       for (const column of descendants.columns) data.removeColumn(column.id)
       for (const board of descendants.boards) data.removeBoard(board.id)
+      for (const run of descendants.drillRuns) data.removeDrillRun(run.id)
+      for (const question of descendants.questions) data.removeQuestion(question.id)
+      for (const set of descendants.drillSets) data.removeDrillSet(set.id)
+      if (descendants.drillType) data.removeDrillType(descendants.drillType.id)
       for (const line of descendants.lines) data.removeLine(line.id)
       for (const sequence of descendants.sequences) data.removeSequence(sequence.id)
       data.removeProject(id)
@@ -142,6 +146,10 @@ export function deleteProject(id: string): Command {
       for (const board of descendants.boards) data.insertBoard(clone(board))
       for (const column of descendants.columns) data.insertColumn(clone(column))
       for (const task of descendants.tasks) data.insertTask(clone(task))
+      if (descendants.drillType) data.insertDrillType(clone(descendants.drillType))
+      for (const set of descendants.drillSets) data.insertDrillSet(clone(set))
+      for (const question of descendants.questions) data.insertQuestion(clone(question))
+      for (const run of descendants.drillRuns) data.insertDrillRun(clone(run))
     }
   }
 }
@@ -221,6 +229,7 @@ export function deleteSequence(id: string, label = 'séquence'): Command {
   const lines = clone(data.linesOfSequence(id))
   const board = data.board(id) ? clone(data.board(id)!) : null
   const { columns, tasks } = clone(data.descendantsOfBoard(id))
+  const drill = clone(data.descendantsOfSet(id))
   const index = data.sequencesOfProject(sequence.projectId).findIndex((s) => s.id === id)
 
   return {
@@ -230,12 +239,15 @@ export function deleteSequence(id: string, label = 'séquence'): Command {
     entityId: id,
     sequenceId: id,
     focus: focusForSequence(id),
-    before: { sequence, lines, board, columns, tasks },
+    before: { sequence, lines, board, columns, tasks, drill },
     do: () => {
       for (const line of lines) data.removeLine(line.id)
       for (const task of tasks) data.removeTask(task.id)
       for (const column of columns) data.removeColumn(column.id)
       if (board) data.removeBoard(board.id)
+      for (const run of drill.runs) data.removeDrillRun(run.id)
+      for (const question of drill.questions) data.removeQuestion(question.id)
+      if (drill.set) data.removeDrillSet(drill.set.id)
       data.removeSequence(id)
     },
     undo: () => {
@@ -244,6 +256,9 @@ export function deleteSequence(id: string, label = 'séquence'): Command {
       if (board) data.insertBoard(clone(board))
       for (const column of columns) data.insertColumn(clone(column))
       for (const task of tasks) data.insertTask(clone(task))
+      if (drill.set) data.insertDrillSet(clone(drill.set))
+      for (const question of drill.questions) data.insertQuestion(clone(question))
+      for (const run of drill.runs) data.insertDrillRun(clone(run))
     }
   }
 }

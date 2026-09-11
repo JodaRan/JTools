@@ -4,7 +4,7 @@
  * et d'une étape dans `migrate.ts`.
  */
 
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 export interface Project {
   id: string
@@ -99,6 +99,85 @@ export interface Task {
   updatedAt: string
 }
 
+// ————————————————————————————— Exercices —————————————————————————————
+//
+// L'outil « Exercices » se greffe sur la même arborescence que les autres :
+// un TYPE d'exercice est un projet, une PARTIE est une séquence. Les deux
+// enregistrements ci-dessous ne portent donc que ce qui leur est propre.
+
+/** Type d'exercice — porte les spécifications de son guide de prompt. */
+export interface DrillType {
+  /** Identique à l'identifiant du projet qui le porte. */
+  id: string
+  /**
+   * Ce qui s'ajoute au guide généralisé pour former le guide du type : ce que
+   * le LLM doit produire ici et nulle part ailleurs (des leçons pour les
+   * mathématiques, pas pour la communication, par exemple).
+   */
+  spec: string
+}
+
+/** Une réponse donnée par l'utilisateur, telle qu'elle compte dans le score. */
+export interface DrillAnswer {
+  questionId: string
+  /** Ce qui a été saisi ou choisi, mot pour mot. */
+  value: string
+  correct: boolean
+  at: string
+}
+
+/**
+ * Partie — c'est le pendant d'une séquence pour l'outil « Exercices ». Elle
+ * porte les réponses en cours, donc le score affiché.
+ */
+export interface DrillSet {
+  /** Identique à l'identifiant de la séquence qui la porte. */
+  id: string
+  answers: DrillAnswer[]
+}
+
+/**
+ * Série archivée. Réinitialiser un score n'efface rien : les réponses et le
+ * résultat sont rangés ici avant que le compteur ne reparte de zéro.
+ */
+export interface DrillRun {
+  id: string
+  setId: string
+  at: string
+  /** Questions que portait la partie au moment de l'archivage. */
+  total: number
+  answered: number
+  correct: number
+  answers: DrillAnswer[]
+}
+
+/** Une réponse se saisit — un nombre — ou se choisit dans une liste. */
+export const QUESTION_KINDS = ['number', 'choice'] as const
+export type QuestionKind = (typeof QUESTION_KINDS)[number]
+
+export interface Question {
+  id: string
+  /** Partie d'appartenance : l'identifiant de la séquence qui la porte. */
+  setId: string
+  kind: QuestionKind
+  /** L'énoncé. */
+  prompt: string
+  /** Consigne ou contexte, affiché sous l'énoncé. */
+  description: string
+  /** Options proposées ; vide pour une réponse numérique. */
+  choices: string[]
+  /** Réponse correcte : le texte exact de l'option, ou le nombre attendu. */
+  answer: string
+  explanation: string
+  /** Leçon à afficher dans le panneau latéral. Vide si l'exercice s'en passe. */
+  lesson: string
+  /** Renvoi vers une leçon en ligne, quand le CSV ne sait pas porter formules et graphes. */
+  lessonUrl: string
+  order: number
+  createdAt: string
+  updatedAt: string
+}
+
 export type HistoryAction =
   | 'create'
   | 'update'
@@ -112,7 +191,16 @@ export type HistoryAction =
   | 'import'
   | 'move'
 
-export type EntityType = 'project' | 'sequence' | 'line' | 'board' | 'column' | 'task'
+export type EntityType =
+  | 'project'
+  | 'sequence'
+  | 'line'
+  | 'board'
+  | 'column'
+  | 'task'
+  | 'drillType'
+  | 'drillSet'
+  | 'question'
 
 /** Journal persistant, distinct de la pile d'annulation (en mémoire). */
 export interface HistoryEntry {
@@ -129,7 +217,7 @@ export interface HistoryEntry {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system'
-export type SidebarPanel = 'history' | 'hidden' | 'masked'
+export type SidebarPanel = 'history' | 'hidden' | 'masked' | 'guide' | 'lesson' | 'runs'
 
 export interface WindowState {
   x: number | null
@@ -186,6 +274,11 @@ export interface DataFile {
   boards: Board[]
   columns: Column[]
   tasks: Task[]
+  /** v4 → v5 : l'outil « Exercices ». Vides pour un fichier d'avant. */
+  drillTypes: DrillType[]
+  drillSets: DrillSet[]
+  questions: Question[]
+  drillRuns: DrillRun[]
 }
 
 export interface HistoryFile {
@@ -242,7 +335,11 @@ export const defaultData = (): DataFile => ({
   lines: [],
   boards: [],
   columns: [],
-  tasks: []
+  tasks: [],
+  drillTypes: [],
+  drillSets: [],
+  questions: [],
+  drillRuns: []
 })
 
 /** Colonnes d'un tableau neuf, dans l'ordre où le travail avance. */

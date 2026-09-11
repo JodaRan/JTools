@@ -8,12 +8,15 @@ import { useLegacyImport } from '@/composables/useLegacyImport'
 import { toolById } from '@/tools/registry'
 import { createSequence, deleteSequence, renameSequence, reorderSequences } from '@/lib/commands'
 import { createBoard } from '@/lib/task-commands'
+import { createDrillSet } from '@/lib/drill-commands'
+import { useDrillPanel } from '@/composables/useDrillPanel'
 import { useLineSearch } from '@/composables/useLineSearch'
 import BackButton from '@/components/common/BackButton.vue'
 import ItemList, { type ListItem } from '@/components/common/ItemList.vue'
 import SearchField from '@/components/common/SearchField.vue'
 import LineResults from '@/components/search/LineResults.vue'
 import IconImport from '~icons/lucide/download'
+import IconGuide from '~icons/lucide/sparkles'
 
 const props = defineProps<{ toolId: string; projectId: string }>()
 
@@ -26,6 +29,8 @@ const { importLegacy } = useLegacyImport()
 const project = computed(() => data.project(props.projectId))
 const tool = computed(() => toolById(props.toolId))
 const isTasks = computed(() => props.toolId === 'tasks')
+const isDrills = computed(() => props.toolId === 'drills')
+const { showPanel } = useDrillPanel()
 
 // Même recherche que depuis la liste des projets, restreinte à ce projet-ci.
 const { query, searching } = useLineSearch()
@@ -36,9 +41,18 @@ const items = computed<ListItem[]>(() =>
     name: sequence.name,
     subtitle: isTasks.value
       ? `${data.tasksOfBoard(sequence.id).length} tâche(s)`
-      : `${data.visibleLines(sequence.id).length} ligne(s)`
+      : isDrills.value
+        ? subtitleOfPart(sequence.id)
+        : `${data.visibleLines(sequence.id).length} ligne(s)`
   }))
 )
+
+/** Une partie se résume à son volume et à son score en cours. */
+function subtitleOfPart(setId: string): string {
+  const score = data.scoreOfSet(setId)
+  const count = `${score.total} question(s)`
+  return score.answered > 0 ? `${count} — ${score.correct} / ${score.answered}` : count
+}
 
 function open(sequenceId: string): void {
   void openSequence(props.toolId, props.projectId, sequenceId)
@@ -46,7 +60,9 @@ function open(sequenceId: string): void {
 
 /** Chaque outil crée le sien : un tableau naît avec ses colonnes. */
 function create(name: string): void {
-  undo.run(isTasks.value ? createBoard(props.projectId, name) : createSequence(props.projectId, name))
+  if (isTasks.value) return undo.run(createBoard(props.projectId, name))
+  if (isDrills.value) return undo.run(createDrillSet(props.projectId, name))
+  undo.run(createSequence(props.projectId, name))
 }
 
 /** Suppression sans confirmation : c'est l'annulation qui sert de filet. */
@@ -71,7 +87,7 @@ async function importOne(): Promise<void> {
         {{ project?.name ?? 'Projet introuvable' }}
       </h1>
       <SearchField
-        v-if="!isTasks"
+        v-if="tool?.searchesLines"
         hotkey
         v-model="query"
         placeholder="Chercher un mot dans ce projet (Ctrl+F)"
@@ -88,10 +104,23 @@ async function importOne(): Promise<void> {
         <IconImport class="size-3.5" />
         Importer un tableau
       </button>
+      <button
+        v-if="isDrills"
+        class="flex shrink-0 items-center gap-1.5 rounded-md border border-app-border px-2.5 py-1.5 text-[12px] text-app-muted transition-colors hover:border-app-accent hover:text-app-text"
+        title="Guide de prompt de ce type — à copier dans un LLM"
+        data-test="open-guide"
+        @click="showPanel('guide')"
+      >
+        <IconGuide class="size-3.5" />
+        Guide de prompt
+      </button>
     </div>
     <p class="mt-1 text-[13px] text-app-muted">
       <template v-if="isTasks">
         Les tableaux de ce projet. Ouvrez-en un pour organiser ses tâches.
+      </template>
+      <template v-else-if="isDrills">
+        Les parties de ce type. Ouvrez-en une pour vous exercer.
       </template>
       <template v-else>
         Les séquences de ce projet. Ouvrez-en une pour éditer ses lignes.

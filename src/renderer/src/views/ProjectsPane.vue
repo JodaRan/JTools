@@ -7,12 +7,14 @@ import { useUndoStore } from '@/stores/undo'
 import { useLegacyImport } from '@/composables/useLegacyImport'
 import { toolById } from '@/tools/registry'
 import { createProject, deleteProject, renameProject, reorderProjects } from '@/lib/commands'
+import { createDrillType, seedDrillTypes } from '@/lib/drill-commands'
 import { useLineSearch } from '@/composables/useLineSearch'
 import BackButton from '@/components/common/BackButton.vue'
 import ItemList, { type ListItem } from '@/components/common/ItemList.vue'
 import SearchField from '@/components/common/SearchField.vue'
 import LineResults from '@/components/search/LineResults.vue'
 import IconImport from '~icons/lucide/folder-down'
+import IconSeed from '~icons/lucide/sparkles'
 
 const props = defineProps<{ toolId: string }>()
 
@@ -24,6 +26,7 @@ const { importLegacy } = useLegacyImport()
 
 const tool = computed(() => toolById(props.toolId))
 const isTasks = computed(() => props.toolId === 'tasks')
+const isDrills = computed(() => props.toolId === 'drills')
 
 // L'outil Tâches cherche déjà dans ses cartes, tableau par tableau : une
 // seconde recherche ici dirait la même chose deux fois.
@@ -39,6 +42,24 @@ const items = computed<ListItem[]>(() =>
 
 function open(projectId: string): void {
   void router.push({ name: 'sequences', params: { toolId: props.toolId, projectId } })
+}
+
+/**
+ * Un type d'exercice naît avec son guide de prompt et une première partie ;
+ * un projet ordinaire n'a ni l'un ni l'autre. Chaque outil crée donc le sien.
+ */
+function create(name: string): void {
+  undo.run(isDrills.value ? createDrillType(props.toolId, name) : createProject(props.toolId, name))
+}
+
+/**
+ * Les cinq types de départ, en une action annulable. Le bouton ne s'affiche
+ * que sur un outil vide : c'est une amorce, pas un bouton de tous les jours.
+ */
+function seed(): void {
+  const command = seedDrillTypes(props.toolId)
+  undo.run(command)
+  message.success('Types d’exercices créés — ouvrez-en un pour copier son guide de prompt.')
 }
 
 /** Suppression sans confirmation : c'est l'annulation qui sert de filet. */
@@ -65,7 +86,7 @@ async function importFolder(): Promise<void> {
         {{ tool?.name ?? 'Outil inconnu' }}
       </h1>
       <SearchField
-        v-if="!isTasks"
+        v-if="tool?.searchesLines"
         hotkey
         v-model="query"
         placeholder="Chercher un mot dans toutes les lignes (Ctrl+F)"
@@ -82,6 +103,16 @@ async function importFolder(): Promise<void> {
         <IconImport class="size-3.5" />
         Reprendre d'anciennes sauvegardes
       </button>
+      <button
+        v-if="isDrills && items.length === 0"
+        class="flex shrink-0 items-center gap-1.5 rounded-md border border-app-border px-2.5 py-1.5 text-[12px] text-app-muted transition-colors hover:border-app-accent hover:text-app-text"
+        title="Créer les cinq types d'exercices de départ, avec leurs guides de prompt"
+        data-test="seed-drills"
+        @click="seed"
+      >
+        <IconSeed class="size-3.5" />
+        Créer les types de départ
+      </button>
     </div>
     <p class="mt-1 text-[13px] text-app-muted">{{ tool?.description }}</p>
 
@@ -91,10 +122,10 @@ async function importFolder(): Promise<void> {
       <ItemList
         v-else
         :items="items"
-        add-placeholder="Nouveau projet — tapez un nom puis Entrée"
-        empty-hint="Aucun projet pour l'instant."
+        :add-placeholder="tool?.projectPlaceholder ?? 'Nouveau projet — tapez un nom puis Entrée'"
+        :empty-hint="`Aucun ${tool?.projectLabel ?? 'projet'} pour l'instant.`"
         @open="open"
-        @create="(name) => undo.run(createProject(props.toolId, name))"
+        @create="create"
         @rename="(id, name) => undo.run(renameProject(id, name))"
         @remove="remove"
         @reorder="(ids) => undo.run(reorderProjects(props.toolId, ids))"

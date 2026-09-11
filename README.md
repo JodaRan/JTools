@@ -1,11 +1,13 @@
 # JTools
 
-Boîte à outils personnelle sur le bureau. Deux outils à ce jour, tous deux
-organisés par projet :
+Boîte à outils personnelle sur le bureau. Trois outils à ce jour, tous
+organisés de la même façon — un niveau de regroupement, puis le document :
 
 - **Séquences** — listes de commandes à copier-coller (backup de BDD, mise à
   jour de code…).
 - **Tâches** — tableaux kanban, avec colonnes, priorités et glisser-déposer.
+- **Exercices** — entraînement mental : des séries de questions générées par un
+  LLM, importées en CSV, corrigées et notées.
 
 Le but n'est pas de stocker de la donnée — c'est de la saisir et de s'en servir
 sans jamais s'arrêter : édition en place, aucune modale, aucun bouton
@@ -220,6 +222,103 @@ départageant les ex æquo par ancienneté. Enfin, l'ancien outil ne datait pas
 les changements de statut et n'estimait pas : ces deux champs restent vides
 plutôt que d'être inventés.
 
+## Exercices
+
+Un outil pour se remettre en jambes : des questions, une réponse, un corrigé,
+un score. Le contenu ne se saisit pas à la main — il se **génère avec un LLM**
+et s'importe en CSV.
+
+L'arborescence est celle des autres outils, avec ses mots à elle : un **type**
+d'exercice (Raisonnement numérique, Stratégie, Mathématiques…) tient lieu de
+projet, et une **partie** tient lieu de séquence. Les types sont de la donnée :
+on en ajoute, on les renomme, on les supprime. « Créer les types de départ »,
+sur un outil encore vide, en pose cinq d'un coup — annulable comme le reste.
+
+### Le guide de prompt
+
+Chaque type porte son **guide de prompt** : c'est lui qu'on copie dans un LLM
+pour obtenir le CSV. Il s'ouvre par le bouton « Guide » et vit dans le panneau
+latéral, en deux morceaux :
+
+- un **guide général**, non modifiable, qui décrit la forme du CSV — les huit
+  colonnes, le séparateur, les guillemets, la façon d'écrire les formules. Il
+  suit le code de l'importateur, pas les humeurs du moment ;
+- une **spécification propre au type**, éditable, qui dit ce qu'il faut
+  produire ici et nulle part ailleurs. C'est là que « Mathématiques » réclame
+  une leçon par exercice, et que « Communication » précise que ses mauvaises
+  réponses doivent rester tentantes.
+
+Le bouton « Copier » colle les deux ensemble : c'est ce bloc-là qui part dans
+le LLM.
+
+### Le CSV
+
+Huit colonnes, dans cet ordre :
+
+```
+question,type,choix,reponse,explication,lecon,lien_lecon,description
+```
+
+`type` vaut `nombre` ou `choix`, les options se séparent par une barre
+verticale `|`, et `reponse` accepte aussi bien le texte exact de l'option que
+son numéro ou sa lettre — l'import les traduit en texte. Une ligne dont la
+réponse ne figure pas dans les choix, ou qui annonce un nombre sans en donner
+un, est **écartée** plutôt que devinée : le message d'import dit laquelle et
+pourquoi.
+
+Le séparateur est deviné (virgule, point-virgule, tabulation), le BOM et les
+fins de ligne Windows sont absorbés, et l'export refait un fichier qui se
+réimporte à l'identique. On importe depuis un fichier ou **directement depuis
+le presse-papiers**, à la suite ou en remplacement.
+
+### Les séries livrées
+
+`samples/` contient de quoi commencer sans rien générer :
+
+| Fichier | À importer dans | Questions |
+|---|---|---|
+| `raisonnement-numerique.csv` | Raisonnement numérique › Série de base | 20 |
+| `raisonnement-logique-pratique.csv` | Raisonnement logique pratique › Série de base | 20 |
+| `strategie.csv` | Stratégie › Série de base | 20 |
+| `communication.csv` | Communication › Série de base | 20 |
+| `maths-premiere.csv` | Mathématiques › Première | 5 |
+| `maths-terminale.csv` | Mathématiques › Terminale | 5 |
+| `maths-physique-premiere-annee.csv` | Mathématiques › Première année de physique | 5 |
+| `exercices-test.csv` | n'importe où | 6 |
+
+Les trois fichiers de mathématiques portent une leçon sur chaque exercice, et
+renvoient vers Wikipédia quand une figure vaut mieux qu'un texte. `pnpm test`
+les relit tous : aucune ligne écartée, chaque réponse annoncée reconnue comme
+juste par le correcteur, et chaque lien vers une page en français ou en anglais.
+
+### S'exercer
+
+Une question à choix se répond d'un clic, une question numérique à la frappe
+puis `Entrée`. Le corrigé — réponse attendue et explication — **n'apparaît
+qu'après** : c'est toute la différence entre s'entraîner et relire. Les
+filtres « Sans réponse » et « Ratées » servent aux tours suivants, et
+« Refaire » remet une question à zéro.
+
+Le bouton **Leçon**, sur les questions qui en portent une, l'affiche à droite.
+Quand une formule ou un graphe ne passe pas dans un CSV, la leçon renvoie vers
+une page en ligne, en français ou en anglais, qui s'ouvre dans le navigateur.
+
+### Le score
+
+L'en-tête affiche les justes sur les répondues — `31 / 40` — et le nombre de
+questions restantes. **Réinitialiser n'efface rien** : le score et le détail
+des réponses sont rangés dans une série, consultable dans le panneau
+« Séries », avant que le compteur ne reparte de zéro. C'est ce qui permet de
+refaire une partie un mois plus tard et de savoir si l'on a progressé.
+
+### Ce que l'annulation couvre ici
+
+`Ctrl+Z` défait ce qui touche au **contenu** : un import de quarante questions
+part en une fois, comme la suppression d'une question, le vidage d'une partie
+ou une retouche du guide. Il ne touche pas aux **réponses** — répondre n'est
+pas modifier un document, et une annulation qui déferait un exercice serait
+une fausse route. Pour revenir sur une réponse, il y a « Refaire ».
+
 ## Chiffrement
 
 Le coffre est **facultatif** : JTools le propose au premier lancement, et on
@@ -291,7 +390,7 @@ Tout est en JSON dans `%APPDATA%/jtools/JTools/` :
 
 | Fichier | Contenu |
 |---|---|
-| `data.json` | projets, séquences, lignes, tableaux, colonnes, tâches |
+| `data.json` | projets, séquences, lignes, tableaux, colonnes, tâches, types d'exercices, questions, séries |
 | `history.json` | journal des modifications |
 | `ui.json` | fenêtre, thème, onglets ouverts, panneau latéral |
 
@@ -309,7 +408,8 @@ dans le volet droit. La structure Projets › Séquences et toute la coquille
 
 Un tableau de tâches **est** une séquence : il porte son identifiant, et hérite
 ainsi de l'onglet, du fil d'Ariane et de la vue côte à côte sans une ligne de
-code en plus.
+code en plus. Une partie d'exercices suit la même règle, et un type d'exercice
+fait de même avec le projet qui le porte.
 
 ## Architecture
 

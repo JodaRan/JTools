@@ -47,7 +47,7 @@ Object.defineProperty(window, 'jtools', {
       load: vi.fn(),
       openForeign: vi.fn()
     },
-    file: { saveText: vi.fn() },
+    file: { saveText: vi.fn(), openText: vi.fn().mockResolvedValue(null) },
     legacy: { pick: vi.fn().mockResolvedValue(null) },
     app: { getVersion: vi.fn().mockResolvedValue('0.0.0-test') }
   }

@@ -101,7 +101,10 @@ const api = {
   file: {
     /** Enregistre du texte en clair, sans passer par le coffre. */
     saveText: (defaultName: string, contents: string): Promise<string | null> =>
-      ipcRenderer.invoke('file:save-text', defaultName, contents)
+      ipcRenderer.invoke('file:save-text', defaultName, contents),
+    /** Ouvre un fichier texte et rend son contenu. `null` si l'utilisateur annule. */
+    openText: (extensions: string[]): Promise<{ name: string; text: string } | null> =>
+      ipcRenderer.invoke('file:open-text', extensions)
   },
   legacy: {
     /**

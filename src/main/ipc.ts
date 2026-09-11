@@ -149,20 +149,43 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     return filePath
   })
 
+  /** Le filtre suit l'extension proposée : un CSV ne s'enregistre pas en .txt. */
+  const filterFor = (name: string): { name: string; extensions: string[] }[] => {
+    const ext = extname(name).replace('.', '').toLowerCase() || 'txt'
+    const label = ext === 'csv' ? 'CSV' : ext === 'json' ? 'JSON' : 'Texte'
+    return [{ name: label, extensions: [ext] }]
+  }
+
   /**
-   * Écriture en clair, hors coffre. Sert à la clé de secours : la chiffrer
-   * avec le coffre qu'elle est censée ouvrir n'aurait aucun sens.
+   * Écriture en clair, hors coffre. Sert à la clé de secours — la chiffrer
+   * avec le coffre qu'elle est censée ouvrir n'aurait aucun sens — et aux
+   * exports CSV de l'outil « Exercices », faits pour être relus ailleurs.
    */
   ipcMain.handle('file:save-text', async (_e, defaultName: string, contents: string) => {
     const win = getWindow()
     const { canceled, filePath } = await dialog.showSaveDialog(win!, {
       title: 'Enregistrer',
       defaultPath: defaultName,
-      filters: [{ name: 'Texte', extensions: ['txt'] }]
+      filters: filterFor(defaultName)
     })
     if (canceled || !filePath) return null
     await writeFile(filePath, contents, 'utf-8')
     return filePath
+  })
+
+  /** Lecture d'un fichier texte choisi par l'utilisateur : l'import CSV. */
+  ipcMain.handle('file:open-text', async (_e, extensions: string[]) => {
+    const win = getWindow()
+    const { canceled, filePaths } = await dialog.showOpenDialog(win!, {
+      title: 'Ouvrir un fichier',
+      properties: ['openFile'],
+      filters: [
+        { name: extensions.join('/').toUpperCase(), extensions },
+        { name: 'Tous les fichiers', extensions: ['*'] }
+      ]
+    })
+    if (canceled || filePaths.length === 0) return null
+    return { name: basename(filePaths[0]), text: await readFile(filePaths[0], 'utf-8') }
   })
 
   /** Chiffre une sauvegarde destinée au presse-papiers, comme pour un fichier. */
