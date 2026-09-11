@@ -8,8 +8,11 @@ import { useLegacyImport } from '@/composables/useLegacyImport'
 import { toolById } from '@/tools/registry'
 import { createSequence, deleteSequence, renameSequence, reorderSequences } from '@/lib/commands'
 import { createBoard } from '@/lib/task-commands'
+import { useLineSearch } from '@/composables/useLineSearch'
 import BackButton from '@/components/common/BackButton.vue'
 import ItemList, { type ListItem } from '@/components/common/ItemList.vue'
+import SearchField from '@/components/common/SearchField.vue'
+import LineResults from '@/components/search/LineResults.vue'
 import IconImport from '~icons/lucide/download'
 
 const props = defineProps<{ toolId: string; projectId: string }>()
@@ -23,6 +26,9 @@ const { importLegacy } = useLegacyImport()
 const project = computed(() => data.project(props.projectId))
 const tool = computed(() => toolById(props.toolId))
 const isTasks = computed(() => props.toolId === 'tasks')
+
+// Même recherche que depuis la liste des projets, restreinte à ce projet-ci.
+const { query, searching } = useLineSearch()
 
 const items = computed<ListItem[]>(() =>
   data.sequencesOfProject(props.projectId).map((sequence) => ({
@@ -64,6 +70,14 @@ async function importOne(): Promise<void> {
       <h1 class="min-w-0 flex-1 truncate text-xl font-semibold">
         {{ project?.name ?? 'Projet introuvable' }}
       </h1>
+      <SearchField
+        v-if="!isTasks"
+        hotkey
+        v-model="query"
+        placeholder="Chercher un mot dans ce projet (Ctrl+F)"
+        input-class="w-56"
+        test-id="lines-search"
+      />
       <button
         v-if="isTasks"
         class="flex shrink-0 items-center gap-1.5 rounded-md border border-app-border px-2.5 py-1.5 text-[12px] text-app-muted transition-colors hover:border-app-accent hover:text-app-text"
@@ -85,7 +99,15 @@ async function importOne(): Promise<void> {
     </p>
 
     <div class="mt-6">
+      <LineResults
+        v-if="searching"
+        :tool-id="props.toolId"
+        :project-id="props.projectId"
+        :query="query"
+      />
+
       <ItemList
+        v-else
         :items="items"
         :add-placeholder="tool?.createPlaceholder ?? 'Nouvel élément — tapez un nom puis Entrée'"
         :empty-hint="`Aucun ${tool?.sequenceLabel ?? 'élément'} pour l'instant.`"

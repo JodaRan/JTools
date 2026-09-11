@@ -29,10 +29,10 @@ import {
   PRIORITY_LABELS
 } from '@/lib/task-commands'
 import BackButton from '@/components/common/BackButton.vue'
+import SearchField from '@/components/common/SearchField.vue'
 import BoardColumn from '@/components/board/BoardColumn.vue'
 import TaskPeek from '@/components/board/TaskPeek.vue'
 import { PRIORITIES, type Column, type Priority } from '@shared/models'
-import IconSearch from '~icons/lucide/search'
 import IconPlus from '~icons/lucide/plus'
 
 const props = defineProps<{
@@ -191,17 +191,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         @keydown.enter="($event.target as HTMLInputElement).blur()"
       />
 
-      <label
-        class="flex shrink-0 items-center gap-1.5 rounded-md border border-app-border px-2 py-1 focus-within:border-app-accent"
-      >
-        <IconSearch class="size-3.5 text-app-muted" />
-        <input
-          v-model="query"
-          placeholder="Rechercher"
-          class="w-32 bg-transparent text-[12px] outline-none placeholder:text-app-muted"
-          data-test="board-search"
-        />
-      </label>
+      <SearchField v-model="query" test-id="board-search" :hotkey="!embedded" />
 
       <span class="shrink-0 text-[12px] text-app-muted">{{ tasks.length }} tâche(s)</span>
     </header>

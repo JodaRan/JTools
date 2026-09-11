@@ -7,8 +7,11 @@ import { useUndoStore } from '@/stores/undo'
 import { useLegacyImport } from '@/composables/useLegacyImport'
 import { toolById } from '@/tools/registry'
 import { createProject, deleteProject, renameProject, reorderProjects } from '@/lib/commands'
+import { useLineSearch } from '@/composables/useLineSearch'
 import BackButton from '@/components/common/BackButton.vue'
 import ItemList, { type ListItem } from '@/components/common/ItemList.vue'
+import SearchField from '@/components/common/SearchField.vue'
+import LineResults from '@/components/search/LineResults.vue'
 import IconImport from '~icons/lucide/folder-down'
 
 const props = defineProps<{ toolId: string }>()
@@ -21,6 +24,10 @@ const { importLegacy } = useLegacyImport()
 
 const tool = computed(() => toolById(props.toolId))
 const isTasks = computed(() => props.toolId === 'tasks')
+
+// L'outil Tâches cherche déjà dans ses cartes, tableau par tableau : une
+// seconde recherche ici dirait la même chose deux fois.
+const { query, searching } = useLineSearch()
 
 const items = computed<ListItem[]>(() =>
   data.projectsOfTool(props.toolId).map((project) => ({
@@ -57,6 +64,14 @@ async function importFolder(): Promise<void> {
       <h1 class="min-w-0 flex-1 truncate text-xl font-semibold">
         {{ tool?.name ?? 'Outil inconnu' }}
       </h1>
+      <SearchField
+        v-if="!isTasks"
+        hotkey
+        v-model="query"
+        placeholder="Chercher un mot dans toutes les lignes (Ctrl+F)"
+        input-class="w-64"
+        test-id="lines-search"
+      />
       <button
         v-if="isTasks"
         class="flex shrink-0 items-center gap-1.5 rounded-md border border-app-border px-2.5 py-1.5 text-[12px] text-app-muted transition-colors hover:border-app-accent hover:text-app-text"
@@ -71,7 +86,10 @@ async function importFolder(): Promise<void> {
     <p class="mt-1 text-[13px] text-app-muted">{{ tool?.description }}</p>
 
     <div class="mt-6">
+      <LineResults v-if="searching" :tool-id="props.toolId" :query="query" />
+
       <ItemList
+        v-else
         :items="items"
         add-placeholder="Nouveau projet — tapez un nom puis Entrée"
         empty-hint="Aucun projet pour l'instant."

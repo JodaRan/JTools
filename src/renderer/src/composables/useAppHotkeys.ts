@@ -1,6 +1,7 @@
 import { onBeforeUnmount, onMounted } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useNavigation } from '@/composables/useNavigation'
+import { usePalette } from '@/composables/usePalette'
 import { useUndoRedo } from '@/composables/useUndoRedo'
 import { useUiStore } from '@/stores/ui'
 import { useVaultStore } from '@/stores/vault'
@@ -17,6 +18,7 @@ export function useAppHotkeys(): void {
   const route = useRoute()
   const { goToExplorer } = useNavigation()
   const { performUndo, performRedo } = useUndoRedo()
+  const palette = usePalette()
 
   const goTo = (tabId: string | null): void => {
     if (tabId === null) {
@@ -43,6 +45,9 @@ export function useAppHotkeys(): void {
       { key: 'y', ctrl: true, inFields: true, run: () => void performRedo() },
       { key: 'z', ctrl: true, shift: true, inFields: true, run: () => void performRedo() },
       { key: 'b', ctrl: true, inFields: true, run: () => ui.toggleSidebar() },
+      // Ouverture rapide. Le raccourci ouvre ; c'est la palette elle-même qui
+      // referme, son champ retenant le clavier tant qu'elle est là.
+      { key: 'p', ctrl: true, inFields: true, run: () => palette.toggle() },
       // Verrouillage immédiat, quoi qu'on soit en train de taper.
       { key: 'l', ctrl: true, inFields: true, run: () => vault.active && vault.lock() },
       // Retour arrière remonte d'un niveau. `inFields` reste à faux : dans un

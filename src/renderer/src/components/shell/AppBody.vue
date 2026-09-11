@@ -19,6 +19,7 @@ import { useAppHotkeys } from '@/composables/useAppHotkeys'
 import { useIdleLock } from '@/composables/useIdleLock'
 import { useUndoRedo } from '@/composables/useUndoRedo'
 import Breadcrumb from '@/components/shell/Breadcrumb.vue'
+import CommandPalette from '@/components/shell/CommandPalette.vue'
 import RightSidebar from '@/components/shell/RightSidebar.vue'
 import ToolHost from '@/views/ToolHost.vue'
 import IconUndo from '~icons/lucide/undo-2'
@@ -157,5 +158,6 @@ function onDividerDown(event: PointerEvent): void {
     </div>
 
     <RightSidebar />
+    <CommandPalette />
   </div>
 </template>

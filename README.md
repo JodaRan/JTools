@@ -62,6 +62,8 @@ et dépose ses captures dans `.shots/`. Il faut avoir construit l'app avant
 | `Ctrl+Z` / `Ctrl+Y` | annule / rétablit, partout dans l'app |
 | `Ctrl+Z` (frappe en cours) | annule d'abord le texte tapé, pas l'action précédente |
 | `Ctrl+B` | panneau latéral (historique, lignes cachées, lignes masquées) |
+| `Ctrl+P` | ouverture rapide : cherche une séquence ou un tableau par son nom |
+| `Ctrl+F` | recherche de mots, depuis une liste de projets ou de séquences |
 | `Ctrl+Tab` / `Ctrl+1…9` | navigue entre les onglets |
 | `Ctrl+L` | verrouille le coffre immédiatement |
 | `Retour arrière` (hors champ) | remonte au niveau supérieur |
@@ -70,6 +72,37 @@ et dépose ses captures dans `.shots/`. Il faut avoir construit l'app avant
 Survoler l'espace entre deux lignes fait apparaître un `+` : le clic insère une
 ligne à cet endroit. La dernière ligne est toujours un champ vide prêt à
 recevoir la frappe suivante.
+
+### Retrouver quelque chose
+
+Deux recherches, pour deux questions différentes.
+
+**`Ctrl+P` — je sais comment ça s'appelle.** La palette d'ouverture rapide
+cherche par le nom, à travers tous les outils à la fois : séquences et
+tableaux dans la même liste. L'outil où l'on se trouve passe en premier,
+séparé du reste par un trait — depuis un tableau, ce sont les tableaux qu'on
+voit d'abord, sans que les séquences disparaissent pour autant. Sur l'index
+des outils, aucun n'est prioritaire.
+
+L'appariement est approximatif : `dplmt` trouve « Deploiement », les accents
+et les capitales ne comptent pas, et le nom du projet compte aussi — taper
+`ephrata` ramène tout ce qu'il contient. `Entrée` ouvre, `Ctrl+Entrée` ouvre
+dans le volet de droite, `Échap` referme. Sans rien taper, la palette liste
+les séquences les plus récemment touchées.
+
+**`Ctrl+F` — je me souviens d'un bout de la commande.** Depuis la liste des
+projets ou celle des séquences, le champ cherche cette fois dans le *contenu*
+des lignes. La portée suit l'endroit d'où l'on cherche : tout l'outil depuis
+la liste des projets, le seul projet depuis la liste de ses séquences. Chaque
+mot saisi doit se trouver sur la ligne, dans n'importe quel ordre. Un résultat
+ouvre sa séquence et pose le halo sur la ligne trouvée.
+
+Rien d'approximatif ici, contrairement à la palette : on cherche un mot qu'on
+sait avoir écrit. **Les lignes masquées ne sont jamais fouillées** — leur
+contenu n'apparaît nulle part sans le geste explicite de l'œil.
+
+L'outil Tâches, lui, garde la recherche de son tableau : elle filtre les
+cartes en place, colonne par colonne.
 
 ### Coller un bloc, copier la séquence
 
